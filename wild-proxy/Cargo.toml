@@ -1,0 +1,10 @@
+[package]
+name = "wild-proxy"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+libwild-proxy = { path = "../libwild-proxy" }
+anyhow = "1.0"
