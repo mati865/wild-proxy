@@ -1,16 +1,16 @@
-use std::{process::Command, str::Lines};
+use std::{fs::remove_file, path::PathBuf, process::Command, str::Lines};
 
 use anyhow::{Context, Result, bail};
 
 // TODOs:
 // - Implement the TODOs
 // - Better error handling
-// - Cleanup temp files
 // - Move fallback to a separate module
 // - Implement proper solution and use fallback as a fallback
 
 /// Fallback and ask the OG linker if we cannot figure it out ourselves
 pub fn fallback() -> Result<()> {
+    let mut files_to_delete = Vec::with_capacity(2);
     let mut exe_with_args = std::env::args();
     let zero_position_arg = exe_with_args
         .next()
@@ -39,16 +39,26 @@ pub fn fallback() -> Result<()> {
     )?;
 
     let commands = obtain_whole_command(raw_dump.lines())?;
-    for command in commands.build_and_assemble {
+    for command in commands.build_and_assemble.into_iter() {
         let args = shellwords::split(command)?;
         Command::new(args.first().unwrap())
             .args(&args[1..])
             .status()?;
+
+        let mut args_iter = args.iter().skip(1);
+        args_iter.find(|arg| *arg == "-o").unwrap();
+        files_to_delete.push(PathBuf::from(args_iter.next().unwrap()));
     }
     if let Some(command) = commands.link {
         let wild_args =
             libwild::Args::parse(command.split(' ').skip(1).map(|arg| arg.trim_matches('"')))?;
-        unsafe { libwild::run_in_subprocess(&wild_args) }
+        // Need to cleanup temp files
+        // unsafe { libwild::run_in_subprocess(&wild_args) }
+        libwild::run(&wild_args)?;
+    }
+
+    for file in files_to_delete {
+        remove_file(&file).with_context(|| format!("Failed to delete {}", file.display()))?;
     }
 
     Ok(())
