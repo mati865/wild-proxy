@@ -116,7 +116,7 @@ fn obtain_whole_command(mut dumped_lines: Lines) -> Result<Commands> {
 }
 
 fn parse_clang(dumped_lines: Lines) -> Result<Commands> {
-    let commands = dumped_lines
+    let mut commands = dumped_lines
         .filter_map(|line| {
             (line.starts_with(' ') && !line.ends_with("(in-process)"))
                 .then(|| line.trim())
@@ -124,9 +124,19 @@ fn parse_clang(dumped_lines: Lines) -> Result<Commands> {
         })
         .collect::<Vec<_>>();
 
+    let linker_command = commands.pop_if(|command| {
+        let path = Path::new(command.split(' ').next().unwrap());
+        // clang/clang++ binaries perform everything except linking
+        !path
+            .file_stem()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("clang")
+    });
+
     let commands = Commands {
-        build_and_assemble: vec![commands[0]],
-        link: commands.get(1).copied(),
+        build_and_assemble: commands,
+        link: linker_command,
     };
 
     Ok(commands)
@@ -167,8 +177,8 @@ clang version 19.1.7
 Target: x86_64-pc-linux-gnu
 Thread model: posix
 InstalledDir: /usr/bin
-    "/usr/bin/clang++" "-cc1" "-triple" "x86_64-pc-linux-gnu" "-emit-obj" "-dumpdir" "a-" "-disable-free" "-clear-ast-before-backend" "-disable-llvm-verifier" "-discard-value-names" "-main-file-name" "hello.cpp" "-mrelocation-model" "pic" "-pic-level" "2" "-pic-is-pie" "-mframe-pointer=all" "-fmath-errno" "-ffp-contract=on" "-fno-rounding-math" "-mconstructor-aliases" "-funwind-tables=2" "-target-cpu" "x86-64" "-tune-cpu" "generic" "-debugger-tuning=gdb" "-fdebug-compilation-dir=/tmp" "-fcoverage-compilation-dir=/tmp" "-resource-dir" "/usr/lib/clang/19" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../include/c++/14.2.1" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../include/c++/14.2.1/x86_64-pc-linux-gnu" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../include/c++/14.2.1/backward" "-internal-isystem" "/usr/lib/clang/19/include" "-internal-isystem" "/usr/local/include" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../x86_64-pc-linux-gnu/include" "-internal-externc-isystem" "/include" "-internal-externc-isystem" "/usr/include" "-fdeprecated-macro" "-ferror-limit" "19" "-stack-protector" "2" "-fgnuc-version=4.2.1" "-fskip-odr-check-in-gmf" "-fcxx-exceptions" "-fexceptions" "-faddrsig" "-D__GCC_HAVE_DWARF2_CFI_ASM=1" "-o" "/tmp/hello-5bcb74.o" "-x" "c++" "hello.cpp"
-    "/usr/bin/ld" "--hash-style=gnu" "--build-id" "--eh-frame-hdr" "-m" "elf_x86_64" "-pie" "-dynamic-linker" "/lib64/ld-linux-x86-64.so.2" "-o" "a.out" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib64/Scrt1.o" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib64/crti.o" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/crtbeginS.o" "-L/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1" "-L/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib64" "-L/lib/../lib64" "-L/usr/lib/../lib64" "-L/lib" "-L/usr/lib" "/tmp/hello-5bcb74.o" "-lstdc++" "-lm" "-lgcc_s" "-lgcc" "-lc" "-lgcc_s" "-lgcc" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/crtendS.o" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib64/crtn.o"
+ "/usr/bin/clang++" "-cc1" "-triple" "x86_64-pc-linux-gnu" "-emit-obj" "-dumpdir" "a-" "-disable-free" "-clear-ast-before-backend" "-disable-llvm-verifier" "-discard-value-names" "-main-file-name" "hello.cpp" "-mrelocation-model" "pic" "-pic-level" "2" "-pic-is-pie" "-mframe-pointer=all" "-fmath-errno" "-ffp-contract=on" "-fno-rounding-math" "-mconstructor-aliases" "-funwind-tables=2" "-target-cpu" "x86-64" "-tune-cpu" "generic" "-debugger-tuning=gdb" "-fdebug-compilation-dir=/tmp" "-fcoverage-compilation-dir=/tmp" "-resource-dir" "/usr/lib/clang/19" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../include/c++/14.2.1" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../include/c++/14.2.1/x86_64-pc-linux-gnu" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../include/c++/14.2.1/backward" "-internal-isystem" "/usr/lib/clang/19/include" "-internal-isystem" "/usr/local/include" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../x86_64-pc-linux-gnu/include" "-internal-externc-isystem" "/include" "-internal-externc-isystem" "/usr/include" "-fdeprecated-macro" "-ferror-limit" "19" "-stack-protector" "2" "-fgnuc-version=4.2.1" "-fskip-odr-check-in-gmf" "-fcxx-exceptions" "-fexceptions" "-faddrsig" "-D__GCC_HAVE_DWARF2_CFI_ASM=1" "-o" "/tmp/hello-5bcb74.o" "-x" "c++" "hello.cpp"
+ "/usr/bin/ld" "--hash-style=gnu" "--build-id" "--eh-frame-hdr" "-m" "elf_x86_64" "-pie" "-dynamic-linker" "/lib64/ld-linux-x86-64.so.2" "-o" "a.out" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib64/Scrt1.o" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib64/crti.o" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/crtbeginS.o" "-L/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1" "-L/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib64" "-L/lib/../lib64" "-L/usr/lib/../lib64" "-L/lib" "-L/usr/lib" "/tmp/hello-5bcb74.o" "-lstdc++" "-lm" "-lgcc_s" "-lgcc" "-lc" "-lgcc_s" "-lgcc" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/crtendS.o" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib64/crtn.o"
             "#;
         let expected = Commands {
             build_and_assemble: vec![
@@ -188,14 +198,71 @@ clang version 19.1.7
 Target: x86_64-pc-linux-gnu
 Thread model: posix
 InstalledDir: /usr/bin
-    (in-process)
-    "/usr/bin/clang++" "-cc1" "-triple" "x86_64-pc-linux-gnu" "-emit-obj" "-disable-free" "-clear-ast-before-backend" "-disable-llvm-verifier" "-discard-value-names" "-main-file-name" "hello.cpp" "-mrelocation-model" "pic" "-pic-level" "2" "-pic-is-pie" "-mframe-pointer=all" "-fmath-errno" "-ffp-contract=on" "-fno-rounding-math" "-mconstructor-aliases" "-funwind-tables=2" "-target-cpu" "x86-64" "-tune-cpu" "generic" "-debugger-tuning=gdb" "-fdebug-compilation-dir=/tmp" "-fcoverage-compilation-dir=/tmp" "-resource-dir" "/usr/lib/clang/19" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../include/c++/14.2.1" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../include/c++/14.2.1/x86_64-pc-linux-gnu" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../include/c++/14.2.1/backward" "-internal-isystem" "/usr/lib/clang/19/include" "-internal-isystem" "/usr/local/include" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../x86_64-pc-linux-gnu/include" "-internal-externc-isystem" "/include" "-internal-externc-isystem" "/usr/include" "-fdeprecated-macro" "-ferror-limit" "19" "-stack-protector" "2" "-fgnuc-version=4.2.1" "-fskip-odr-check-in-gmf" "-fcxx-exceptions" "-fexceptions" "-faddrsig" "-D__GCC_HAVE_DWARF2_CFI_ASM=1" "-o" "hello.o" "-x" "c++" "hello.cpp"
+ (in-process)
+ "/usr/bin/clang++" "-cc1" "-triple" "x86_64-pc-linux-gnu" "-emit-obj" "-disable-free" "-clear-ast-before-backend" "-disable-llvm-verifier" "-discard-value-names" "-main-file-name" "hello.cpp" "-mrelocation-model" "pic" "-pic-level" "2" "-pic-is-pie" "-mframe-pointer=all" "-fmath-errno" "-ffp-contract=on" "-fno-rounding-math" "-mconstructor-aliases" "-funwind-tables=2" "-target-cpu" "x86-64" "-tune-cpu" "generic" "-debugger-tuning=gdb" "-fdebug-compilation-dir=/tmp" "-fcoverage-compilation-dir=/tmp" "-resource-dir" "/usr/lib/clang/19" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../include/c++/14.2.1" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../include/c++/14.2.1/x86_64-pc-linux-gnu" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../include/c++/14.2.1/backward" "-internal-isystem" "/usr/lib/clang/19/include" "-internal-isystem" "/usr/local/include" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../x86_64-pc-linux-gnu/include" "-internal-externc-isystem" "/include" "-internal-externc-isystem" "/usr/include" "-fdeprecated-macro" "-ferror-limit" "19" "-stack-protector" "2" "-fgnuc-version=4.2.1" "-fskip-odr-check-in-gmf" "-fcxx-exceptions" "-fexceptions" "-faddrsig" "-D__GCC_HAVE_DWARF2_CFI_ASM=1" "-o" "hello.o" "-x" "c++" "hello.cpp"
             "#;
         let expected = Commands {
             build_and_assemble: vec![
                 r#""/usr/bin/clang++" "-cc1" "-triple" "x86_64-pc-linux-gnu" "-emit-obj" "-disable-free" "-clear-ast-before-backend" "-disable-llvm-verifier" "-discard-value-names" "-main-file-name" "hello.cpp" "-mrelocation-model" "pic" "-pic-level" "2" "-pic-is-pie" "-mframe-pointer=all" "-fmath-errno" "-ffp-contract=on" "-fno-rounding-math" "-mconstructor-aliases" "-funwind-tables=2" "-target-cpu" "x86-64" "-tune-cpu" "generic" "-debugger-tuning=gdb" "-fdebug-compilation-dir=/tmp" "-fcoverage-compilation-dir=/tmp" "-resource-dir" "/usr/lib/clang/19" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../include/c++/14.2.1" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../include/c++/14.2.1/x86_64-pc-linux-gnu" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../include/c++/14.2.1/backward" "-internal-isystem" "/usr/lib/clang/19/include" "-internal-isystem" "/usr/local/include" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../x86_64-pc-linux-gnu/include" "-internal-externc-isystem" "/include" "-internal-externc-isystem" "/usr/include" "-fdeprecated-macro" "-ferror-limit" "19" "-stack-protector" "2" "-fgnuc-version=4.2.1" "-fskip-odr-check-in-gmf" "-fcxx-exceptions" "-fexceptions" "-faddrsig" "-D__GCC_HAVE_DWARF2_CFI_ASM=1" "-o" "hello.o" "-x" "c++" "hello.cpp""#,
             ],
             link: None,
+        };
+        assert_eq!(expected, obtain_whole_command(input.lines()).unwrap());
+    }
+
+    #[test]
+    fn parse_clang_compile_only() {
+        let input = r#"
+clang version 19.1.7
+Target: x86_64-pc-linux-gnu
+Thread model: posix
+InstalledDir: /usr/bin
+ (in-process)
+ "/usr/bin/clang++" "-cc1" "-triple" "x86_64-pc-linux-gnu" "-S" "-disable-free" "-clear-ast-before-backend" "-disable-llvm-verifier" "-discard-value-names" "-main-file-name" "hello.cpp" "-mrelocation-model" "pic" "-pic-level" "2" "-pic-is-pie" "-mframe-pointer=all" "-fmath-errno" "-ffp-contract=on" "-fno-rounding-math" "-mconstructor-aliases" "-funwind-tables=2" "-target-cpu" "x86-64" "-tune-cpu" "generic" "-debugger-tuning=gdb" "-fdebug-compilation-dir=/tmp" "-fcoverage-compilation-dir=/tmp" "-resource-dir" "/usr/lib/clang/19" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../include/c++/14.2.1" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../include/c++/14.2.1/x86_64-pc-linux-gnu" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../include/c++/14.2.1/backward" "-internal-isystem" "/usr/lib/clang/19/include" "-internal-isystem" "/usr/local/include" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../x86_64-pc-linux-gnu/include" "-internal-externc-isystem" "/include" "-internal-externc-isystem" "/usr/include" "-fdeprecated-macro" "-ferror-limit" "19" "-stack-protector" "2" "-fgnuc-version=4.2.1" "-fskip-odr-check-in-gmf" "-fcxx-exceptions" "-fexceptions" "-fcolor-diagnostics" "-faddrsig" "-D__GCC_HAVE_DWARF2_CFI_ASM=1" "-o" "hello.s" "-x" "c++" "hello.cpp"
+                "#;
+        let expected = Commands {
+            build_and_assemble: vec![
+                r#""/usr/bin/clang++" "-cc1" "-triple" "x86_64-pc-linux-gnu" "-S" "-disable-free" "-clear-ast-before-backend" "-disable-llvm-verifier" "-discard-value-names" "-main-file-name" "hello.cpp" "-mrelocation-model" "pic" "-pic-level" "2" "-pic-is-pie" "-mframe-pointer=all" "-fmath-errno" "-ffp-contract=on" "-fno-rounding-math" "-mconstructor-aliases" "-funwind-tables=2" "-target-cpu" "x86-64" "-tune-cpu" "generic" "-debugger-tuning=gdb" "-fdebug-compilation-dir=/tmp" "-fcoverage-compilation-dir=/tmp" "-resource-dir" "/usr/lib/clang/19" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../include/c++/14.2.1" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../include/c++/14.2.1/x86_64-pc-linux-gnu" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../include/c++/14.2.1/backward" "-internal-isystem" "/usr/lib/clang/19/include" "-internal-isystem" "/usr/local/include" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../x86_64-pc-linux-gnu/include" "-internal-externc-isystem" "/include" "-internal-externc-isystem" "/usr/include" "-fdeprecated-macro" "-ferror-limit" "19" "-stack-protector" "2" "-fgnuc-version=4.2.1" "-fskip-odr-check-in-gmf" "-fcxx-exceptions" "-fexceptions" "-fcolor-diagnostics" "-faddrsig" "-D__GCC_HAVE_DWARF2_CFI_ASM=1" "-o" "hello.s" "-x" "c++" "hello.cpp""#,
+            ],
+            link: None,
+        };
+        assert_eq!(expected, obtain_whole_command(input.lines()).unwrap());
+    }
+
+    #[test]
+    fn parse_clang_assemble_only() {
+        let input = r#"
+clang version 19.1.7
+Target: x86_64-pc-linux-gnu
+Thread model: posix
+InstalledDir: /usr/bin
+ (in-process)
+ "/usr/bin/clang++" "-cc1as" "-triple" "x86_64-pc-linux-gnu" "-filetype" "obj" "-main-file-name" "hello.s" "-target-cpu" "x86-64" "-fdebug-compilation-dir=/tmp" "-dwarf-debug-producer" "clang version 19.1.7" "-dwarf-version=5" "-mrelocation-model" "pic" "-o" "hello.o" "hello.s"
+                "#;
+        let expected = Commands {
+            build_and_assemble: vec![
+                r#""/usr/bin/clang++" "-cc1as" "-triple" "x86_64-pc-linux-gnu" "-filetype" "obj" "-main-file-name" "hello.s" "-target-cpu" "x86-64" "-fdebug-compilation-dir=/tmp" "-dwarf-debug-producer" "clang version 19.1.7" "-dwarf-version=5" "-mrelocation-model" "pic" "-o" "hello.o" "hello.s""#,
+            ],
+            link: None,
+        };
+        assert_eq!(expected, obtain_whole_command(input.lines()).unwrap());
+    }
+
+    #[test]
+    fn parse_clang_link_only() {
+        let input = r#"
+clang version 19.1.7
+Target: x86_64-pc-linux-gnu
+Thread model: posix
+InstalledDir: /usr/bin
+ (in-process)
+ "/usr/bin/ld" "--hash-style=gnu" "--build-id" "--eh-frame-hdr" "-m" "elf_x86_64" "-pie" "-dynamic-linker" "/lib64/ld-linux-x86-64.so.2" "-o" "a.out" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib64/Scrt1.o" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib64/crti.o" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/crtbeginS.o" "-L/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1" "-L/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib64" "-L/lib/../lib64" "-L/usr/lib/../lib64" "-L/lib" "-L/usr/lib" "hello.o" "-lstdc++" "-lm" "-lgcc_s" "-lgcc" "-lc" "-lgcc_s" "-lgcc" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/crtendS.o" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib64/crtn.o"
+                    "#;
+        let expected = Commands {
+            build_and_assemble: vec![],
+            link: Some(
+                r#""/usr/bin/ld" "--hash-style=gnu" "--build-id" "--eh-frame-hdr" "-m" "elf_x86_64" "-pie" "-dynamic-linker" "/lib64/ld-linux-x86-64.so.2" "-o" "a.out" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib64/Scrt1.o" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib64/crti.o" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/crtbeginS.o" "-L/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1" "-L/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib64" "-L/lib/../lib64" "-L/usr/lib/../lib64" "-L/lib" "-L/usr/lib" "hello.o" "-lstdc++" "-lm" "-lgcc_s" "-lgcc" "-lc" "-lgcc_s" "-lgcc" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/crtendS.o" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib64/crtn.o""#,
+            ),
         };
         assert_eq!(expected, obtain_whole_command(input.lines()).unwrap());
     }
