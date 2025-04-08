@@ -16,7 +16,7 @@ use anyhow::{Context, Result, bail};
 
 /// Fallback and ask the OG linker if we cannot figure it out ourselves
 pub fn fallback() -> Result<()> {
-    let mut files_to_delete = Vec::with_capacity(2);
+    let mut files_to_delete: Vec<PathBuf> = Vec::with_capacity(2);
     let mut exe_with_args = std::env::args();
     let zero_position_arg = exe_with_args
         .next()
@@ -56,9 +56,22 @@ pub fn fallback() -> Result<()> {
     let commands = obtain_whole_command(raw_dump.lines())?;
     for command in commands.build_and_assemble.into_iter() {
         let args = shellwords::split(command)?;
-        Command::new(args.first().unwrap())
+        let exit_status = Command::new(args.first().unwrap())
             .args(&args[1..])
             .status()?;
+
+        // If one of the steps fails, cleanup and forward the exit code
+        if !exit_status.success() {
+            for file in files_to_delete {
+                remove_file(&file)
+                    .with_context(|| format!("Failed to delete {}", file.display()))?;
+            }
+            if let Some(code) = exit_status.code() {
+                exit(code);
+            } else {
+                return Ok(());
+            }
+        }
 
         let mut args_iter = args.iter().skip(1);
         args_iter.find(|arg| *arg == "-o").unwrap();
