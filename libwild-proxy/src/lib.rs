@@ -1,7 +1,7 @@
 use std::{
     fs::remove_file,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, exit},
     str::Lines,
 };
 
@@ -12,6 +12,7 @@ use anyhow::{Context, Result, bail};
 // - Better error handling
 // - Move fallback to a separate module
 // - Implement proper solution and use fallback as a fallback
+// - Preserve colors for errors
 
 /// Fallback and ask the OG linker if we cannot figure it out ourselves
 pub fn fallback() -> Result<()> {
@@ -34,14 +35,23 @@ pub fn fallback() -> Result<()> {
         return Ok(());
     }
 
-    let raw_dump = String::from_utf8(
-        Command::new(binary)
-            .args(&args)
-            .arg("-###")
-            .output()
-            .with_context(|| format!("Failed to run {binary}"))?
-            .stderr,
-    )?;
+    let compiler_output = Command::new(binary)
+        .args(&args)
+        .arg("-###")
+        .output()
+        .with_context(|| format!("Failed to run {binary}"))?;
+    if !compiler_output.status.success() {
+        String::from_utf8_lossy(&compiler_output.stderr)
+            .lines()
+            .filter(|line| line.contains("error: "))
+            .for_each(|error_line| eprintln!("{}", error_line.trim_end()));
+        if let Some(code) = compiler_output.status.code() {
+            exit(code);
+        } else {
+            return Ok(());
+        }
+    }
+    let raw_dump = String::from_utf8(compiler_output.stderr)?;
 
     let commands = obtain_whole_command(raw_dump.lines())?;
     for command in commands.build_and_assemble.into_iter() {
