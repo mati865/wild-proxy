@@ -1,4 +1,9 @@
-use std::{fs::remove_file, path::PathBuf, process::Command, str::Lines};
+use std::{
+    fs::remove_file,
+    path::{Path, PathBuf},
+    process::Command,
+    str::Lines,
+};
 
 use anyhow::{Context, Result, bail};
 
@@ -128,7 +133,7 @@ fn parse_clang(dumped_lines: Lines) -> Result<Commands> {
 }
 
 fn parse_gcc(dumped_lines: Lines) -> Result<Commands> {
-    let commands = dumped_lines
+    let mut commands = dumped_lines
         .filter_map(|line| {
             line.starts_with(' ')
                 .then(|| line.trim())
@@ -136,9 +141,15 @@ fn parse_gcc(dumped_lines: Lines) -> Result<Commands> {
         })
         .collect::<Vec<_>>();
 
+    let linker_command = commands.pop_if(|command| {
+        let path = Path::new(command.split(' ').next().unwrap());
+        // Collect2 binary is responsible for linking, other binaries compile or assebmle
+        path.file_stem().unwrap() == "collect2"
+    });
+
     let commands = Commands {
-        build_and_assemble: commands[..=1].to_vec(),
-        link: commands.get(2).copied(),
+        build_and_assemble: commands,
+        link: linker_command,
     };
 
     Ok(commands)
@@ -201,13 +212,13 @@ Thread model: posix
 Supported LTO compression algorithms: zlib zstd
 gcc version 14.2.1 20250207 (GCC)
 COLLECT_GCC_OPTIONS='-shared-libgcc' '-mtune=generic' '-march=x86-64' '-dumpdir' 'a-'
-    /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/cc1plus -quiet -D_GNU_SOURCE hello.cpp -quiet -dumpdir a- -dumpbase hello.cpp -dumpbase-ext .cpp "-mtune=generic" "-march=x86-64" -o /tmp/ccxGHCn4.s
+ /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/cc1plus -quiet -D_GNU_SOURCE hello.cpp -quiet -dumpdir a- -dumpbase hello.cpp -dumpbase-ext .cpp "-mtune=generic" "-march=x86-64" -o /tmp/ccxGHCn4.s
 COLLECT_GCC_OPTIONS='-shared-libgcc' '-mtune=generic' '-march=x86-64' '-dumpdir' 'a-'
-    as --64 -o /tmp/ccql7Oad.o /tmp/ccxGHCn4.s
+ as --64 -o /tmp/ccql7Oad.o /tmp/ccxGHCn4.s
 COMPILER_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/:/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/
 LIBRARY_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib/:/lib/../lib/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../:/lib/:/usr/lib/
 COLLECT_GCC_OPTIONS='-shared-libgcc' '-mtune=generic' '-march=x86-64' '-dumpdir' 'a.'
-    /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/collect2 -plugin /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/liblto_plugin.so "-plugin-opt=/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/lto-wrapper" "-plugin-opt=-fresolution=/tmp/ccIkCFvS.res" "-plugin-opt=-pass-through=-lgcc_s" "-plugin-opt=-pass-through=-lgcc" "-plugin-opt=-pass-through=-lc" "-plugin-opt=-pass-through=-lgcc_s" "-plugin-opt=-pass-through=-lgcc" --build-id --eh-frame-hdr "--hash-style=gnu" -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib/Scrt1.o /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib/crti.o /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/crtbeginS.o -L/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1 -L/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib -L/lib/../lib -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../.. /tmp/ccql7Oad.o "-lstdc++" -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/crtendS.o /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib/crtn.o
+ /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/collect2 -plugin /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/liblto_plugin.so "-plugin-opt=/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/lto-wrapper" "-plugin-opt=-fresolution=/tmp/ccIkCFvS.res" "-plugin-opt=-pass-through=-lgcc_s" "-plugin-opt=-pass-through=-lgcc" "-plugin-opt=-pass-through=-lc" "-plugin-opt=-pass-through=-lgcc_s" "-plugin-opt=-pass-through=-lgcc" --build-id --eh-frame-hdr "--hash-style=gnu" -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib/Scrt1.o /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib/crti.o /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/crtbeginS.o -L/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1 -L/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib -L/lib/../lib -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../.. /tmp/ccql7Oad.o "-lstdc++" -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/crtendS.o /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib/crtn.o
 COLLECT_GCC_OPTIONS='-shared-libgcc' '-mtune=generic' '-march=x86-64' '-dumpdir' 'a.'
             "#;
         let expected = Commands {
@@ -233,9 +244,9 @@ Thread model: posix
 Supported LTO compression algorithms: zlib zstd
 gcc version 14.2.1 20250207 (GCC)
 COLLECT_GCC_OPTIONS='-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
-    /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/cc1plus -quiet -D_GNU_SOURCE hello.cpp -quiet -dumpbase hello.cpp -dumpbase-ext .cpp "-mtune=generic" "-march=x86-64" -o /tmp/cc47fLtr.s
+ /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/cc1plus -quiet -D_GNU_SOURCE hello.cpp -quiet -dumpbase hello.cpp -dumpbase-ext .cpp "-mtune=generic" "-march=x86-64" -o /tmp/cc47fLtr.s
 COLLECT_GCC_OPTIONS='-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
-    as --64 -o hello.o /tmp/cc47fLtr.s
+ as --64 -o hello.o /tmp/cc47fLtr.s
 COMPILER_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/:/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/
 LIBRARY_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib/:/lib/../lib/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../:/lib/:/usr/lib/
 COLLECT_GCC_OPTIONS='-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
@@ -246,6 +257,80 @@ COLLECT_GCC_OPTIONS='-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
                 r#"as --64 -o hello.o /tmp/cc47fLtr.s"#,
             ],
             link: None,
+        };
+        assert_eq!(expected, obtain_whole_command(input.lines()).unwrap());
+    }
+
+    #[test]
+    fn parse_gcc_compile_only() {
+        let input = r#"
+Using built-in specs.
+COLLECT_GCC=g++
+Target: x86_64-pc-linux-gnu
+Configured with: /tmp/pkg/src/gcc/configure --enable-languages=ada,c,c++,d,fortran,go,lto,m2,objc,obj-c++,rust --enable-bootstrap --prefix=/usr --libdir=/usr/lib --libexecdir=/usr/lib --mandir=/usr/share/man --infodir=/usr/share/info --with-bugurl=https://github.com/CachyOS/CachyOS-PKGBUILDS/issues --with-build-config=bootstrap-lto --with-linker-hash-style=gnu --with-system-zlib --enable-__cxa_atexit --enable-cet=auto --enable-checking=release --enable-clocale=gnu --enable-default-pie --enable-default-ssp --enable-gnu-indirect-function --enable-gnu-unique-object --enable-libstdcxx-backtrace --enable-link-serialization=1 --enable-linker-build-id --enable-lto --enable-multilib --enable-plugin --enable-shared --enable-threads=posix --disable-libssp --disable-libstdcxx-pch --disable-werror
+Thread model: posix
+Supported LTO compression algorithms: zlib zstd
+gcc version 14.2.1 20250207 (GCC)
+COLLECT_GCC_OPTIONS='-S' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+ /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/cc1plus -quiet -D_GNU_SOURCE hello.cpp -quiet -dumpbase hello.cpp -dumpbase-ext .cpp "-mtune=generic" "-march=x86-64" -o hello.s
+COMPILER_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/:/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/
+LIBRARY_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib/:/lib/../lib/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-S' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+            "#;
+        let expected = Commands {
+            build_and_assemble: vec![
+                r#"/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/cc1plus -quiet -D_GNU_SOURCE hello.cpp -quiet -dumpbase hello.cpp -dumpbase-ext .cpp "-mtune=generic" "-march=x86-64" -o hello.s"#,
+            ],
+            link: None,
+        };
+        assert_eq!(expected, obtain_whole_command(input.lines()).unwrap());
+    }
+
+    #[test]
+    fn parse_gcc_assemble_only() {
+        let input = r#"
+Using built-in specs.
+COLLECT_GCC=g++
+Target: x86_64-pc-linux-gnu
+Configured with: /tmp/pkg/src/gcc/configure --enable-languages=ada,c,c++,d,fortran,go,lto,m2,objc,obj-c++,rust --enable-bootstrap --prefix=/usr --libdir=/usr/lib --libexecdir=/usr/lib --mandir=/usr/share/man --infodir=/usr/share/info --with-bugurl=https://github.com/CachyOS/CachyOS-PKGBUILDS/issues --with-build-config=bootstrap-lto --with-linker-hash-style=gnu --with-system-zlib --enable-__cxa_atexit --enable-cet=auto --enable-checking=release --enable-clocale=gnu --enable-default-pie --enable-default-ssp --enable-gnu-indirect-function --enable-gnu-unique-object --enable-libstdcxx-backtrace --enable-link-serialization=1 --enable-linker-build-id --enable-lto --enable-multilib --enable-plugin --enable-shared --enable-threads=posix --disable-libssp --disable-libstdcxx-pch --disable-werror
+Thread model: posix
+Supported LTO compression algorithms: zlib zstd
+gcc version 14.2.1 20250207 (GCC)
+COLLECT_GCC_OPTIONS='-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+ as --64 -o hello.o hello.s
+COMPILER_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/:/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/
+LIBRARY_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib/:/lib/../lib/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+            "#;
+        let expected = Commands {
+            build_and_assemble: vec![r#"as --64 -o hello.o hello.s"#],
+            link: None,
+        };
+        assert_eq!(expected, obtain_whole_command(input.lines()).unwrap());
+    }
+
+    #[test]
+    fn parse_gcc_link_only() {
+        let input = r#"
+Using built-in specs.
+COLLECT_GCC=g++
+COLLECT_LTO_WRAPPER=/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/lto-wrapper
+Target: x86_64-pc-linux-gnu
+Configured with: /tmp/pkg/src/gcc/configure --enable-languages=ada,c,c++,d,fortran,go,lto,m2,objc,obj-c++,rust --enable-bootstrap --prefix=/usr --libdir=/usr/lib --libexecdir=/usr/lib --mandir=/usr/share/man --infodir=/usr/share/info --with-bugurl=https://github.com/CachyOS/CachyOS-PKGBUILDS/issues --with-build-config=bootstrap-lto --with-linker-hash-style=gnu --with-system-zlib --enable-__cxa_atexit --enable-cet=auto --enable-checking=release --enable-clocale=gnu --enable-default-pie --enable-default-ssp --enable-gnu-indirect-function --enable-gnu-unique-object --enable-libstdcxx-backtrace --enable-link-serialization=1 --enable-linker-build-id --enable-lto --enable-multilib --enable-plugin --enable-shared --enable-threads=posix --disable-libssp --disable-libstdcxx-pch --disable-werror
+Thread model: posix
+Supported LTO compression algorithms: zlib zstd
+gcc version 14.2.1 20250207 (GCC)
+COMPILER_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/:/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/
+LIBRARY_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib/:/lib/../lib/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-shared-libgcc' '-mtune=generic' '-march=x86-64' '-dumpdir' 'a.'
+ /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/collect2 -plugin /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/liblto_plugin.so "-plugin-opt=/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/lto-wrapper" "-plugin-opt=-fresolution=/tmp/ccluTT6J.res" "-plugin-opt=-pass-through=-lgcc_s" "-plugin-opt=-pass-through=-lgcc" "-plugin-opt=-pass-through=-lc" "-plugin-opt=-pass-through=-lgcc_s" "-plugin-opt=-pass-through=-lgcc" --build-id --eh-frame-hdr "--hash-style=gnu" -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib/Scrt1.o /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib/crti.o /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/crtbeginS.o -L/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1 -L/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib -L/lib/../lib -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../.. hello.o "-lstdc++" -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/crtendS.o /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib/crtn.o
+COLLECT_GCC_OPTIONS='-shared-libgcc' '-mtune=generic' '-march=x86-64' '-dumpdir' 'a.'
+            "#;
+        let expected = Commands {
+            build_and_assemble: vec![],
+            link: Some(
+                r#"/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/collect2 -plugin /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/liblto_plugin.so "-plugin-opt=/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/lto-wrapper" "-plugin-opt=-fresolution=/tmp/ccluTT6J.res" "-plugin-opt=-pass-through=-lgcc_s" "-plugin-opt=-pass-through=-lgcc" "-plugin-opt=-pass-through=-lc" "-plugin-opt=-pass-through=-lgcc_s" "-plugin-opt=-pass-through=-lgcc" --build-id --eh-frame-hdr "--hash-style=gnu" -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib/Scrt1.o /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib/crti.o /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/crtbeginS.o -L/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1 -L/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib -L/lib/../lib -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../.. hello.o "-lstdc++" -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/crtendS.o /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib/crtn.o"#,
+            ),
         };
         assert_eq!(expected, obtain_whole_command(input.lines()).unwrap());
     }
