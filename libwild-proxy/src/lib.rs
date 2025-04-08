@@ -49,12 +49,19 @@ pub fn fallback() -> Result<()> {
         args_iter.find(|arg| *arg == "-o").unwrap();
         files_to_delete.push(PathBuf::from(args_iter.next().unwrap()));
     }
+
+    // Delete this file only after linker is done, or leave if we are not linking (like when `-c` is passed)
+    let final_compiler_output = files_to_delete.pop();
+
     if let Some(command) = commands.link {
         let wild_args =
             libwild::Args::parse(command.split(' ').skip(1).map(|arg| arg.trim_matches('"')))?;
         // Need to cleanup temp files
         // unsafe { libwild::run_in_subprocess(&wild_args) }
         libwild::run(&wild_args)?;
+        if let Some(file) = final_compiler_output {
+            remove_file(&file).with_context(|| format!("Failed to delete {}", file.display()))?;
+        }
     }
 
     for file in files_to_delete {
