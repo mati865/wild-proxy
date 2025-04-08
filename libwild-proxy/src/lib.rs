@@ -24,14 +24,11 @@ pub fn fallback() -> Result<()> {
     let args = exe_with_args.collect::<Vec<_>>();
     let binary = parse_linker_name(&zero_position_arg)?;
 
-    if args.contains(&"--help".to_string()) {
-        Command::new(binary).arg("--help").status()?;
-        return Ok(());
-    } else if args.contains(&"--version".to_string()) {
-        Command::new(binary).arg("--version").status()?;
-        return Ok(());
-    } else if args.contains(&"-###".to_string()) {
-        Command::new(binary).arg("-###").status()?;
+    if args
+        .iter()
+        .any(|arg| ["--help", "--version", "-###"].contains(&arg.as_str()))
+    {
+        Command::new(binary).args(&args).status()?;
         return Ok(());
     }
 
