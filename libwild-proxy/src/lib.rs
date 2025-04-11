@@ -13,6 +13,7 @@ use anyhow::{Context, Result, bail};
 // - Move fallback to a separate module
 // - Implement proper solution and use fallback as a fallback
 // - Preserve colors for errors
+// - Move files cleanup to an object with Drop?
 
 /// Fallback and ask the OG linker if we cannot figure it out ourselves
 pub fn fallback() -> Result<()> {
@@ -77,13 +78,21 @@ pub fn fallback() -> Result<()> {
 
     // Delete this file only after linker is done, or leave if we are not linking (like when `-c` is passed)
     let final_compiler_output = files_to_delete.pop();
+    let mut wild_result = Ok(());
 
     if let Some(command) = commands.link {
         let wild_args =
-            libwild::Args::parse(command.split(' ').skip(1).map(|arg| arg.trim_matches('"')))?;
-        // Need to cleanup temp files
-        // unsafe { libwild::run_in_subprocess(&wild_args) }
-        libwild::run(&wild_args)?;
+            libwild::Args::parse(command.split(' ').skip(1).map(|arg| arg.trim_matches('"')));
+
+        match wild_args {
+            Ok(wild_args) => {
+                // Need to cleanup temp files
+                // unsafe { libwild::run_in_subprocess(&wild_args) }
+                wild_result = libwild::run(&wild_args);
+            }
+            Err(e) => wild_result = Err(e),
+        }
+
         if let Some(file) = final_compiler_output {
             remove_file(&file).with_context(|| format!("Failed to delete {}", file.display()))?;
         }
@@ -93,7 +102,7 @@ pub fn fallback() -> Result<()> {
         remove_file(&file).with_context(|| format!("Failed to delete {}", file.display()))?;
     }
 
-    Ok(())
+    wild_result
 }
 
 fn parse_linker_name(zero_position_arg: &str) -> Result<&str> {
