@@ -71,9 +71,10 @@ pub fn fallback() -> Result<()> {
             }
         }
 
-        let mut args_iter = args.iter().skip(1);
-        args_iter.find(|arg| *arg == "-o").unwrap();
-        files_to_delete.push(PathBuf::from(args_iter.next().unwrap()));
+        let mut args_iter = args.windows(2);
+        if let Some(arg) = args_iter.find_map(|window| (window[0] == "-o").then_some(&window[1])) {
+            files_to_delete.push(PathBuf::from(arg));
+        }
     }
 
     // Delete this file only after linker is done, or leave if we are not linking (like when `-c` is passed)
