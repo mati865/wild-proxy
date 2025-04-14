@@ -82,8 +82,8 @@ pub fn fallback() -> Result<()> {
     let mut wild_result = Ok(());
 
     if let Some(command) = commands.link {
-        let wild_args =
-            libwild::Args::parse(command.split(' ').skip(1).map(|arg| arg.trim_matches('"')));
+        let args = shellwords::split(command)?;
+        let wild_args = libwild::Args::parse(args.iter().skip(1));
 
         match wild_args {
             Ok(wild_args) => {
