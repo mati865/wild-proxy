@@ -175,9 +175,15 @@ fn parse_clang(dumped_lines: Lines) -> Result<Commands> {
 fn parse_gcc(dumped_lines: Lines) -> Result<Commands> {
     let mut commands = dumped_lines
         .filter_map(|line| {
-            line.starts_with(' ')
-                .then(|| line.trim())
-                .filter(|trimmed| !trimmed.is_empty())
+            if line.starts_with(' ') {
+                Some(line.trim())
+            } else if line.contains("error: ") {
+                // GCC exits with 0 when passing `-### -wrong-arg` but shows the error message
+                eprintln!("{line}");
+                exit(1);
+            } else {
+                None
+            }
         })
         .collect::<Vec<_>>();
 
