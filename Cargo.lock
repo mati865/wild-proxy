@@ -358,7 +358,7 @@ checksum = "d750af042f7ef4f724306de029d18836c26c1765a54a6a3f094cbd23a7267ffa"
 [[package]]
 name = "libwild"
 version = "0.4.0"
-source = "git+https://github.com/davidlattimore/wild?branch=main#e046ec6deb55aa57fac742f5242ecb2762a3fead"
+source = "git+https://github.com/davidlattimore/wild?branch=main#d40b4f82f9e19296b739d7f28f55b204226d0b57"
 dependencies = [
  "anyhow",
  "atomic-take",
@@ -402,7 +402,7 @@ dependencies = [
  "anyhow",
  "libwild",
  "pretty_assertions",
- "shellwords",
+ "shell-words",
 ]
 
 [[package]]
@@ -417,7 +417,7 @@ dependencies = [
 [[package]]
 name = "linker-layout"
 version = "0.4.0"
-source = "git+https://github.com/davidlattimore/wild?branch=main#e046ec6deb55aa57fac742f5242ecb2762a3fead"
+source = "git+https://github.com/davidlattimore/wild?branch=main#d40b4f82f9e19296b739d7f28f55b204226d0b57"
 dependencies = [
  "anyhow",
  "postcard",
@@ -427,7 +427,7 @@ dependencies = [
 [[package]]
 name = "linker-trace"
 version = "0.4.0"
-source = "git+https://github.com/davidlattimore/wild?branch=main#e046ec6deb55aa57fac742f5242ecb2762a3fead"
+source = "git+https://github.com/davidlattimore/wild?branch=main#d40b4f82f9e19296b739d7f28f55b204226d0b57"
 dependencies = [
  "anyhow",
  "postcard",
@@ -437,7 +437,7 @@ dependencies = [
 [[package]]
 name = "linker-utils"
 version = "0.4.0"
-source = "git+https://github.com/davidlattimore/wild?branch=main#e046ec6deb55aa57fac742f5242ecb2762a3fead"
+source = "git+https://github.com/davidlattimore/wild?branch=main#d40b4f82f9e19296b739d7f28f55b204226d0b57"
 dependencies = [
  "anyhow",
  "object",
@@ -711,14 +711,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0e1e51ad52f9ead5d806e61860fd595da6c76f061a6324bd13aa4f437a29681"
 
 [[package]]
-name = "shellwords"
+name = "shell-words"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89e515aa4699a88148ed5ef96413ceef0048ce95b43fbc955a33bde0a70fcae6"
-dependencies = [
- "lazy_static",
- "regex",
-]
+checksum = "24188a676b6ae68c3b2cb3a01be17fbf7240ce009799bb56d5b1409051e78fde"
 
 [[package]]
 name = "shlex"

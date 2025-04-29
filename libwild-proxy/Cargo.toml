@@ -7,7 +7,9 @@ rust-version.workspace = true
 edition.workspace = true
 
 [dependencies]
-libwild = { git = "https://github.com/davidlattimore/wild", branch = "main" }
 anyhow = "1.0"
-pretty_assertions = "1.4.1"
-shellwords = "1.1.0"
+libwild = { git = "https://github.com/davidlattimore/wild", branch = "main" }
+shell-words = "1.1.0"
+
+[dev-dependencies]
+pretty_assertions = "1"

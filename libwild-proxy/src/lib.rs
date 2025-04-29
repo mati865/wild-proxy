@@ -53,7 +53,7 @@ pub fn fallback() -> Result<()> {
 
     let commands = obtain_whole_command(raw_dump.lines())?;
     for command in commands.build_and_assemble.into_iter() {
-        let args = shellwords::split(command)?;
+        let args = shell_words::split(command)?;
         let exit_status = Command::new(args.first().unwrap())
             .args(&args[1..])
             .status()?;
@@ -82,7 +82,7 @@ pub fn fallback() -> Result<()> {
     let mut wild_result = Ok(());
 
     if let Some(command) = commands.link {
-        let args = shellwords::split(command)?;
+        let args = shell_words::split(command)?;
         let wild_args = libwild::Args::parse(args.iter().skip(1));
 
         match wild_args {
