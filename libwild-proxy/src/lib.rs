@@ -247,6 +247,25 @@ InstalledDir: /usr/bin
     }
 
     #[test]
+    fn parse_clang_preprocess_only() {
+        let input = r#"
+clang version 19.1.7
+Target: x86_64-pc-linux-gnu
+Thread model: posix
+InstalledDir: /usr/bin
+ (in-process)
+    "/usr/bin/clang-19" "-cc1" "-triple" "x86_64-pc-linux-gnu" "-E" "-disable-free" "-clear-ast-before-backend" "-disable-llvm-verifier" "-discard-value-names" "-main-file-name" "-" "-mrelocation-model" "pic" "-pic-level" "2" "-pic-is-pie" "-mframe-pointer=all" "-fmath-errno" "-ffp-contract=on" "-fno-rounding-math" "-mconstructor-aliases" "-funwind-tables=2" "-target-cpu" "x86-64" "-tune-cpu" "generic" "-debugger-tuning=gdb" "-fdebug-compilation-dir=/home/mateusz/Projects/rust" "-fcoverage-compilation-dir=/home/mateusz/Projects/rust" "-resource-dir" "/usr/lib/clang/19" "-internal-isystem" "/usr/lib/clang/19/include" "-internal-isystem" "/usr/local/include" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../x86_64-pc-linux-gnu/include" "-internal-externc-isystem" "/include" "-internal-externc-isystem" "/usr/include" "-ferror-limit" "19" "-stack-protector" "2" "-fgnuc-version=4.2.1" "-fskip-odr-check-in-gmf" "-fcolor-diagnostics" "-faddrsig" "-D__GCC_HAVE_DWARF2_CFI_ASM=1" "-o" "-" "-x" "c" "-"
+        "#;
+        let expected = Commands {
+            build_and_assemble: vec![
+                r#""/usr/bin/clang-19" "-cc1" "-triple" "x86_64-pc-linux-gnu" "-E" "-disable-free" "-clear-ast-before-backend" "-disable-llvm-verifier" "-discard-value-names" "-main-file-name" "-" "-mrelocation-model" "pic" "-pic-level" "2" "-pic-is-pie" "-mframe-pointer=all" "-fmath-errno" "-ffp-contract=on" "-fno-rounding-math" "-mconstructor-aliases" "-funwind-tables=2" "-target-cpu" "x86-64" "-tune-cpu" "generic" "-debugger-tuning=gdb" "-fdebug-compilation-dir=/home/mateusz/Projects/rust" "-fcoverage-compilation-dir=/home/mateusz/Projects/rust" "-resource-dir" "/usr/lib/clang/19" "-internal-isystem" "/usr/lib/clang/19/include" "-internal-isystem" "/usr/local/include" "-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../x86_64-pc-linux-gnu/include" "-internal-externc-isystem" "/include" "-internal-externc-isystem" "/usr/include" "-ferror-limit" "19" "-stack-protector" "2" "-fgnuc-version=4.2.1" "-fskip-odr-check-in-gmf" "-fcolor-diagnostics" "-faddrsig" "-D__GCC_HAVE_DWARF2_CFI_ASM=1" "-o" "-" "-x" "c" "-""#,
+            ],
+            link: None,
+        };
+        assert_eq!(expected, obtain_whole_command(input.lines()).unwrap());
+    }
+
+    #[test]
     fn parse_clang_compile_only() {
         let input = r#"
 clang version 19.1.7
@@ -358,6 +377,31 @@ COLLECT_GCC_OPTIONS='-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
             build_and_assemble: vec![
                 r#"/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/cc1plus -quiet -D_GNU_SOURCE hello.cpp -quiet -dumpbase hello.cpp -dumpbase-ext .cpp "-mtune=generic" "-march=x86-64" -o /tmp/cc47fLtr.s"#,
                 r#"as --64 -o hello.o /tmp/cc47fLtr.s"#,
+            ],
+            link: None,
+        };
+        assert_eq!(expected, obtain_whole_command(input.lines()).unwrap());
+    }
+
+    #[test]
+    fn parse_gcc_preprocess_only() {
+        let input = r#"
+Using built-in specs.
+COLLECT_GCC=gcc
+Target: x86_64-pc-linux-gnu
+Configured with: /tmp/pkg/src/gcc/configure --enable-languages=ada,c,c++,d,fortran,go,lto,m2,objc,obj-c++,rust --enable-bootstrap --prefix=/usr --libdir=/usr/lib --libexecdir=/usr/lib --mandir=/usr/share/man --infodir=/usr/share/info --with-bugurl=https://github.com/CachyOS/CachyOS-PKGBUILDS/issues --with-build-config=bootstrap-lto --with-linker-hash-style=gnu --with-system-zlib --enable-__cxa_atexit --enable-cet=auto --enable-checking=release --enable-clocale=gnu --enable-default-pie --enable-default-ssp --enable-gnu-indirect-function --enable-gnu-unique-object --enable-libstdcxx-backtrace --enable-link-serialization=1 --enable-linker-build-id --enable-lto --enable-multilib --enable-plugin --enable-shared --enable-threads=posix --disable-libssp --disable-libstdcxx-pch --disable-werror
+Thread model: posix
+Supported LTO compression algorithms: zlib zstd
+gcc version 14.2.1 20250207 (GCC)
+COLLECT_GCC_OPTIONS='-E' '-mtune=generic' '-march=x86-64'
+ /usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/cc1 -E -quiet - "-mtune=generic" "-march=x86-64" -dumpbase -
+COMPILER_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/:/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/
+LIBRARY_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../../lib/:/lib/../lib/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-E' '-mtune=generic' '-march=x86-64'
+        "#;
+        let expected = Commands {
+            build_and_assemble: vec![
+                r#"/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/cc1 -E -quiet - "-mtune=generic" "-march=x86-64" -dumpbase -"#,
             ],
             link: None,
         };
