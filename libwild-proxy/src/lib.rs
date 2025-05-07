@@ -1,5 +1,6 @@
+mod outputs_cleanup;
+
 use std::{
-    fs::remove_file,
     path::{Path, PathBuf},
     process::{Command, exit},
     str::Lines,
@@ -7,17 +8,18 @@ use std::{
 
 use anyhow::{Context, Result, bail};
 
+use outputs_cleanup::DeleteOutputs;
+
 // TODOs:
 // - Implement the TODOs
 // - Better error handling
 // - Move fallback to a separate module
 // - Implement proper solution and use fallback as a fallback
 // - Preserve colors for errors
-// - Move files cleanup to an object with Drop?
 
 /// Fallback and ask the OG linker if we cannot figure it out ourselves
 pub fn fallback() -> Result<()> {
-    let mut files_to_delete: Vec<PathBuf> = Vec::with_capacity(2);
+    let mut files_to_delete = DeleteOutputs::with_capacity(2);
     let mut exe_with_args = std::env::args();
     let zero_position_arg = exe_with_args
         .next()
@@ -52,18 +54,14 @@ pub fn fallback() -> Result<()> {
     let raw_dump = String::from_utf8(compiler_output.stderr)?;
 
     let commands = obtain_whole_command(raw_dump.lines())?;
-    for command in commands.build_and_assemble.into_iter() {
+    let mut steps_iterator = commands.build_and_assemble.into_iter().peekable();
+    while let Some(command) = steps_iterator.next() {
         let args = shell_words::split(command)?;
         let exit_status = Command::new(args.first().unwrap())
             .args(&args[1..])
             .status()?;
 
-        // If one of the steps fails, cleanup and forward the exit code
         if !exit_status.success() {
-            for file in files_to_delete {
-                remove_file(&file)
-                    .with_context(|| format!("Failed to delete {}", file.display()))?;
-            }
             if let Some(code) = exit_status.code() {
                 exit(code);
             } else {
@@ -71,14 +69,17 @@ pub fn fallback() -> Result<()> {
             }
         }
 
-        let mut args_iter = args.windows(2);
-        if let Some(arg) = args_iter.find_map(|window| (window[0] == "-o").then_some(&window[1])) {
-            files_to_delete.push(PathBuf::from(arg));
+        // Add ouytput files from intermediate steps to cleanup.
+        if steps_iterator.peek().is_some() || commands.link.is_some() {
+            let mut args_iter = args.windows(2);
+            if let Some(arg) =
+                args_iter.find_map(|window| (window[0] == "-o").then_some(&window[1]))
+            {
+                files_to_delete.add_output(PathBuf::from(arg));
+            }
         }
     }
 
-    // Delete this file only after linker is done, or leave if we are not linking (like when `-c` is passed)
-    let final_compiler_output = files_to_delete.pop();
     let mut wild_result = Ok(());
 
     if let Some(command) = commands.link {
@@ -93,14 +94,6 @@ pub fn fallback() -> Result<()> {
             }
             Err(e) => wild_result = Err(e),
         }
-
-        if let Some(file) = final_compiler_output {
-            remove_file(&file).with_context(|| format!("Failed to delete {}", file.display()))?;
-        }
-    }
-
-    for file in files_to_delete {
-        remove_file(&file).with_context(|| format!("Failed to delete {}", file.display()))?;
     }
 
     wild_result

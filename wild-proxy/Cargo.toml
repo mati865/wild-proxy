@@ -8,3 +8,4 @@ license.workspace = true
 [dependencies]
 libwild-proxy = { path = "../libwild-proxy" }
 anyhow = "1.0"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
