@@ -176,7 +176,7 @@ fn parse_gcc(dumped_lines: Lines) -> Result<Commands> {
     let mut commands = dumped_lines
         .filter_map(|line| {
             if line.starts_with(' ') {
-                Some(line.trim())
+                Some(line.trim()).filter(|s| !s.is_empty())
             } else if line.contains("error: ") {
                 // GCC exits with 0 when passing `-### -wrong-arg` but shows the error message
                 eprintln!("{line}");
