@@ -23,7 +23,7 @@ pub fn fallback() -> Result<()> {
         .next()
         .context("Could not obtain binary name from args")?;
     let args = exe_with_args.collect::<Vec<_>>();
-    let binary = parse_linker_name(&zero_position_arg)?;
+    let binary = parse_binary_name(&zero_position_arg)?;
 
     if args
         .iter()
@@ -106,14 +106,15 @@ pub fn fallback() -> Result<()> {
     wild_result
 }
 
-fn parse_linker_name(zero_position_arg: &str) -> Result<&str> {
+fn parse_binary_name(zero_position_arg: &str) -> Result<&str> {
     const NEEDLE: &str = "wild-";
-    let needle_position = zero_position_arg.rfind(NEEDLE).context("todo rfind");
-    let trimmed = needle_position.map(|pos| &zero_position_arg[pos + NEEDLE.len()..])?;
+    // Rfind because we may have been given full path to the binary
+    let needle_position = zero_position_arg.rfind(NEEDLE);
+    let trimmed = needle_position.map(|pos| &zero_position_arg[pos + NEEDLE.len()..]);
     let binary = match trimmed {
-        valid_command @ ("cc" | "c++" | "gcc" | "g++" | "clang" | "clang++") => valid_command,
+        Some(valid_command @ ("cc" | "c++" | "gcc" | "g++" | "clang" | "clang++")) => valid_command,
         _ => bail!(
-            "Argument at zero position must follow pattern: `wild-<command>` where command is one of: cc,c++,gcc,g++,clang,clang++\ngot: {zero_position_arg}"
+            "Argument at zero position must follow pattern: `wild-<command>` where command is one of: cc,c++,gcc,g++,clang,clang++ got: {zero_position_arg}"
         ),
     };
 
