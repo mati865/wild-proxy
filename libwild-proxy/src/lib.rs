@@ -6,7 +6,7 @@ use std::{
     str::Lines,
 };
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 
 use outputs_cleanup::DeleteOutputs;
 
@@ -84,7 +84,7 @@ pub fn fallback() -> Result<()> {
 
     if let Some(command) = commands.link {
         let args = shell_words::split(command)?;
-        let wild_args = libwild::Args::parse(args.iter().skip(1));
+        let wild_args = libwild::Args::parse(|| args.iter().skip(1));
 
         match wild_args {
             Ok(wild_args) => {
@@ -96,7 +96,7 @@ pub fn fallback() -> Result<()> {
         }
     }
 
-    wild_result
+    wild_result.map_err(|e| anyhow!("{e:?}"))
 }
 
 fn parse_binary_name(zero_position_arg: &str) -> Result<&str> {
@@ -130,13 +130,12 @@ fn obtain_whole_command(mut dumped_lines: Lines) -> Result<Commands> {
             bail!("No more lines");
         }
     };
-    let commands = if first_real_line.starts_with("clang") {
+
+    if first_real_line.starts_with("clang") {
         parse_clang(dumped_lines)
     } else {
         parse_gcc(dumped_lines)
-    };
-
-    commands
+    }
 }
 
 fn parse_clang(dumped_lines: Lines) -> Result<Commands> {
