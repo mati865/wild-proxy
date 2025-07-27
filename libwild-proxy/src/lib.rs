@@ -27,10 +27,11 @@ pub fn fallback() -> Result<()> {
     let args = exe_with_args.collect::<Vec<_>>();
     let binary = parse_binary_name(&zero_position_arg)?;
 
-    if args
-        .iter()
-        .any(|arg| ["--help", "--version", "-###"].contains(&arg.as_str()))
-    {
+    if args.iter().any(|arg| {
+        ["--help", "--version", "-###"].contains(&arg.as_str())
+            || arg.starts_with("-dump")
+            || arg.starts_with("-print")
+    }) {
         Command::new(binary).args(&args).status()?;
         return Ok(());
     }
@@ -53,7 +54,8 @@ pub fn fallback() -> Result<()> {
     }
     let raw_dump = String::from_utf8(compiler_output.stderr)?;
 
-    let commands = obtain_whole_command(raw_dump.lines())?;
+    let commands = obtain_whole_command(raw_dump.lines())
+        .with_context(|| format!("Invocation args: {args:?}"))?;
     let mut steps_iterator = commands.build_and_assemble.into_iter().peekable();
     while let Some(command) = steps_iterator.next() {
         let args = shell_words::split(command)?;
@@ -90,7 +92,7 @@ pub fn fallback() -> Result<()> {
             Ok(wild_args) => {
                 // Need to cleanup temp files
                 // unsafe { libwild::run_in_subprocess(&wild_args) }
-                wild_result = libwild::run(&wild_args);
+                wild_result = libwild::run(wild_args);
             }
             Err(e) => wild_result = Err(e),
         }
