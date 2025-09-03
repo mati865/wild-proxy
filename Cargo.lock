@@ -446,8 +446,9 @@ checksum = "6a82ae493e598baaea5209805c49bbf2ea7de956d50d7da0da1164f9c6d28543"
 
 [[package]]
 name = "libwild"
-version = "0.5.0"
-source = "git+https://github.com/davidlattimore/wild?branch=main#35f1e6ee7ee8859a8829a13daae81d2480958ac3"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f0c8a88c6a12a4fe3b12bb2381552a1899d1cb23630dd0e27a3620b3c399b7d"
 dependencies = [
  "anyhow",
  "atomic-take",
@@ -514,8 +515,9 @@ dependencies = [
 
 [[package]]
 name = "linker-layout"
-version = "0.5.0"
-source = "git+https://github.com/davidlattimore/wild?branch=main#35f1e6ee7ee8859a8829a13daae81d2480958ac3"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72f83f558fa657c862b495854f745651eea81a815180316705c4c4d4993c5f6c"
 dependencies = [
  "anyhow",
  "postcard",
@@ -524,8 +526,9 @@ dependencies = [
 
 [[package]]
 name = "linker-trace"
-version = "0.5.0"
-source = "git+https://github.com/davidlattimore/wild?branch=main#35f1e6ee7ee8859a8829a13daae81d2480958ac3"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d38ab2b85f95b3559094b10dc44c7a35a9033accb6e7df394150a5eb02132c2"
 dependencies = [
  "anyhow",
  "postcard",
@@ -534,8 +537,9 @@ dependencies = [
 
 [[package]]
 name = "linker-utils"
-version = "0.5.0"
-source = "git+https://github.com/davidlattimore/wild?branch=main#35f1e6ee7ee8859a8829a13daae81d2480958ac3"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "332ce924d2b090eaececce4a0fbcf845be5435742890d7877115964a9760e735"
 dependencies = [
  "anyhow",
  "leb128",

@@ -8,7 +8,7 @@ edition.workspace = true
 
 [dependencies]
 anyhow = "1.0"
-libwild = { git = "https://github.com/davidlattimore/wild", branch = "main" }
+libwild = "0.6"
 shell-words = "1.1.0"
 tracing = "0.1"
 
