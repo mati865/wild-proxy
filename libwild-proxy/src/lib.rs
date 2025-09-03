@@ -24,7 +24,9 @@ pub fn fallback() -> Result<()> {
     let zero_position_arg = exe_with_args
         .next()
         .context("Could not obtain binary name from args")?;
-    let args = exe_with_args.collect::<Vec<_>>();
+    let args = exe_with_args
+        .filter(|s| !s.starts_with("-fuse-ld="))
+        .collect::<Vec<_>>();
     let binary = parse_binary_name(&zero_position_arg)?;
 
     if args.iter().any(|arg| {
@@ -71,7 +73,7 @@ pub fn fallback() -> Result<()> {
             }
         }
 
-        // Add ouytput files from intermediate steps to cleanup.
+        // Add output files from intermediate steps to clean up.
         if steps_iterator.peek().is_some() || commands.link.is_some() {
             let mut args_iter = args.windows(2);
             if let Some(arg) =
@@ -90,7 +92,7 @@ pub fn fallback() -> Result<()> {
 
         match wild_args {
             Ok(wild_args) => {
-                // Need to cleanup temp files
+                // Need to clean up temp files
                 // unsafe { libwild::run_in_subprocess(&wild_args) }
                 wild_result = libwild::run(wild_args);
             }
