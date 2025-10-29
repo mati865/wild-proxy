@@ -108,14 +108,9 @@ fn parse_binary_name(zero_position_arg: &str) -> Result<&str> {
     // Rfind because we may have been given full path to the binary
     let needle_position = zero_position_arg.rfind(NEEDLE);
     let trimmed = needle_position.map(|pos| &zero_position_arg[pos + NEEDLE.len()..]);
-    let binary = match trimmed {
-        Some(valid_command @ ("cc" | "c++" | "gcc" | "g++" | "clang" | "clang++")) => valid_command,
-        _ => bail!(
-            "Argument at zero position must follow pattern: `wild-<command>` where command is one of: cc,c++,gcc,g++,clang,clang++ got: {zero_position_arg}"
-        ),
-    };
-
-    Ok(binary)
+    trimmed.ok_or_else(|| {
+        anyhow!("The command name to wrap must follow the pattern: `wild-<command>`")
+    })
 }
 
 #[derive(Debug, PartialEq, Eq)]
