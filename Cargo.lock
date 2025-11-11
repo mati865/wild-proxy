@@ -456,8 +456,6 @@ checksum = "2874a2af47a2325c2001a6e6fad9b16a53b802102b528163885171cf92b15976"
 [[package]]
 name = "libwild"
 version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6f3ab4f193a3b91f81aea2250791b770e0a38007a8858b6dbe91d6c72383a2e"
 dependencies = [
  "anyhow",
  "atomic-take",
@@ -528,8 +526,6 @@ dependencies = [
 [[package]]
 name = "linker-layout"
 version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "513d2b72c75025bbdc066a753e08c68e690db5b7669c27751c1fa8471a0aa822"
 dependencies = [
  "anyhow",
  "postcard",
@@ -539,8 +535,6 @@ dependencies = [
 [[package]]
 name = "linker-trace"
 version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4cdf24643e5bdf7154047999c47c8c48cc8831672f576701573f6676101a675c"
 dependencies = [
  "anyhow",
  "postcard",
@@ -550,8 +544,6 @@ dependencies = [
 [[package]]
 name = "linker-utils"
 version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac2515c00ab7dcbe9d952582988df4093d39e66c57a111981c7eac1aa156525f"
 dependencies = [
  "anyhow",
  "derive_more",
