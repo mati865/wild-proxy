@@ -1,14 +1,13 @@
 mod outputs_cleanup;
 
+use anyhow::{Context, Result, anyhow, bail};
+use outputs_cleanup::DeleteOutputs;
 use std::{
+    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
     process::{Command, exit},
     str::Lines,
 };
-
-use anyhow::{Context, Result, anyhow, bail};
-
-use outputs_cleanup::DeleteOutputs;
 
 // TODOs:
 // - Implement the TODOs
@@ -27,22 +26,24 @@ pub fn fallback() -> Result<()> {
     let args = exe_with_args
         .filter(|s| !s.starts_with("-fuse-ld="))
         .collect::<Vec<_>>();
-    let binary = parse_binary_name(&zero_position_arg)?;
+
+    let compiler_path = find_next_executable(&zero_position_arg)?;
+    let mut compiler_command = Command::new(&compiler_path);
 
     if args.iter().any(|arg| {
         ["--help", "--version", "-###"].contains(&arg.as_str())
             || arg.starts_with("-dump")
             || arg.starts_with("-print")
     }) {
-        Command::new(binary).args(&args).status()?;
+        compiler_command.args(&args).status()?;
         return Ok(());
     }
 
-    let compiler_output = Command::new(binary)
+    let compiler_output = compiler_command
         .args(&args)
         .arg("-###")
         .output()
-        .with_context(|| format!("Failed to run {binary}"))?;
+        .with_context(|| format!("Failed to run {}", compiler_path.display()))?;
     if !compiler_output.status.success() {
         String::from_utf8_lossy(&compiler_output.stderr)
             .lines()
@@ -103,14 +104,37 @@ pub fn fallback() -> Result<()> {
     wild_result.map_err(|e| anyhow!("{e:?}"))
 }
 
-fn parse_binary_name(zero_position_arg: &str) -> Result<&str> {
-    const NEEDLE: &str = "wild-";
-    // Rfind because we may have been given full path to the binary
-    let needle_position = zero_position_arg.rfind(NEEDLE);
-    let trimmed = needle_position.map(|pos| &zero_position_arg[pos + NEEDLE.len()..]);
-    trimmed.ok_or_else(|| {
-        anyhow!("The command name to wrap must follow the pattern: `wild-<command>`")
-    })
+fn find_next_executable(zero_position_arg: &str) -> Result<PathBuf> {
+    let mut wanted_exe = Path::new(zero_position_arg)
+        .file_stem()
+        .context("args[0] has no file stem")?;
+    let real_exe = std::env::current_exe().context("Could not get current exe path")?;
+    let wrapper_name = real_exe
+        .file_stem()
+        .context("Current exe has no file stem")?;
+    if wanted_exe == wrapper_name {
+        wanted_exe = "cc".as_ref();
+    }
+    let paths = std::env::var_os("PATH").context("Could not get PATH env variable")?;
+    for dir in std::env::split_paths(&paths) {
+        let candidate = dir.join(wanted_exe);
+        if let Ok(meta) = std::fs::symlink_metadata(&candidate) {
+            let mode = meta.permissions().mode();
+            // Owner, group or others executable and not this wrapper?
+            if mode & 0o111 != 0
+                && (!meta.is_symlink()
+                    || candidate
+                        .read_link()
+                        .is_ok_and(|path| path.file_stem() != Some(wrapper_name)))
+            {
+                return Ok(candidate);
+            }
+        }
+    }
+    bail!(
+        "Could not find {} other than this wrapper in PATH",
+        wanted_exe.display()
+    );
 }
 
 #[derive(Debug, PartialEq, Eq)]

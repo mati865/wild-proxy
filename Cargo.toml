@@ -8,6 +8,6 @@ edition = "2024"
 rust-version = "1.89"
 license = "MIT OR Apache-2.0"
 
-# Uncomment this to use Wild from local repository
-# [patch.crates-io]
-# libwild = { path = "../wild/libwild" }
+# Uncomment this to use Wild from the local repository
+#[patch.crates-io]
+#libwild = { path = "../wild/libwild" }
