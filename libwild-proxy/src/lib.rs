@@ -4,6 +4,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use outputs_cleanup::DeleteOutputs;
 use std::{
     os::unix::fs::PermissionsExt,
+    os::unix::process::CommandExt,
     path::{Path, PathBuf},
     process::{Command, exit},
     str::Lines,
@@ -31,12 +32,17 @@ pub fn fallback() -> Result<()> {
     let mut compiler_command = Command::new(&compiler_path);
 
     if args.iter().any(|arg| {
-        ["--help", "--version", "-###"].contains(&arg.as_str())
+        ["--help", "--version", "-###", "-c"].contains(&arg.as_str())
             || arg.starts_with("-dump")
             || arg.starts_with("-print")
     }) {
-        compiler_command.args(&args).status()?;
-        return Ok(());
+        // Exec doesn't return if successful
+        let err = compiler_command.args(&args).exec();
+        return Err(anyhow!(
+            "Failed to exec compiler {}: {}",
+            compiler_path.display(),
+            err
+        ));
     }
 
     let compiler_output = compiler_command
