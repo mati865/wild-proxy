@@ -512,6 +512,7 @@ dependencies = [
  "anyhow",
  "libwild",
  "pretty_assertions",
+ "semver",
  "shell-words",
  "tracing",
 ]
