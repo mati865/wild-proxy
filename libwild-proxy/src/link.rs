@@ -151,15 +151,17 @@ pub(crate) fn link(
     }
     final_linker_args.extend(driver_args.objects_and_libs);
     final_linker_args.extend(linker_args.iter().map(ToString::to_string));
-    if cpp_mode {
-        final_linker_args.extend(["-lstdc++".to_string(), "-lm".to_string()]);
-    }
-    if driver_args.output_kind == OutputKind::Static
-        || driver_args.output_kind == OutputKind::StaticPie
-    {
-        final_linker_args.extend(static_system_libs.iter().map(ToString::to_string));
-    } else {
-        final_linker_args.extend(shared_system_libs.iter().map(ToString::to_string));
+    if driver_args.default_libs {
+        if cpp_mode {
+            final_linker_args.extend(["-lstdc++".to_string(), "-lm".to_string()]);
+        }
+        if driver_args.output_kind == OutputKind::Static
+            || driver_args.output_kind == OutputKind::StaticPie
+        {
+            final_linker_args.extend(static_system_libs.iter().map(ToString::to_string));
+        } else {
+            final_linker_args.extend(shared_system_libs.iter().map(ToString::to_string));
+        }
     }
     final_linker_args.push(gcc_objects.end_object.display().to_string());
     final_linker_args.push(system_library_paths.crtn.display().to_string());

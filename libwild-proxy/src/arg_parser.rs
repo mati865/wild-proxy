@@ -49,6 +49,7 @@ pub struct DriverArgs {
     pub(crate) output: String,
     pub(crate) objects_and_libs: Vec<String>,
     pub(crate) output_kind: OutputKind,
+    pub(crate) default_libs: bool,
     pub(crate) _profiler: bool,
 }
 
@@ -58,6 +59,7 @@ impl Default for DriverArgs {
             output: "a.out".to_string(),
             objects_and_libs: vec![],
             output_kind: Default::default(),
+            default_libs: true,
             _profiler: false,
         }
     }
@@ -83,7 +85,7 @@ pub(crate) fn parse(args: &[String]) -> Result<Mode> {
     let mut static_pie = false;
 
     while let Some(arg) = args.next() {
-        // Linker args accepted by the driver
+        // Driver args
         {
             let found = ["-T", "--sysroot"].iter().any(|&linker_arg| {
                 parse_and_append_arg(linker_arg, &arg, &mut args, &mut linker_args)
@@ -99,12 +101,50 @@ pub(crate) fn parse(args: &[String]) -> Result<Mode> {
                 linker_args.push(arg);
                 continue;
             }
+
+            // TODO: This is used by Rust, handle others as well.
+            match arg.as_str() {
+                "-nodefaultlibs" => {
+                    driver_args.default_libs = false;
+                    continue;
+                }
+                _ => {}
+            }
+
+            match arg.as_str() {
+                "-pie" => {
+                    pie = true;
+                    continue;
+                }
+                "-no-pie" => {
+                    pie = false;
+                    continue;
+                }
+                "-static" => {
+                    static_exe = true;
+                    continue;
+                }
+                "-static-pie" => {
+                    static_pie = true;
+                    continue;
+                }
+                "-shared" => {
+                    shared = true;
+                    continue;
+                }
+                _ => (),
+            }
         }
 
         // Args that the compiler and linker driver need to handle.
         {
             if let Some(output) = parse_arg("-o", &arg, &mut args) {
                 driver_args.output = output.to_string();
+                compiler_args.push(arg.to_string());
+                continue;
+            }
+            if arg == "-pthread" {
+                driver_args.objects_and_libs.push("-lpthread".to_string());
                 compiler_args.push(arg.to_string());
                 continue;
             }
@@ -147,38 +187,6 @@ pub(crate) fn parse(args: &[String]) -> Result<Mode> {
             }
         }
 
-        {
-            if arg == "-pthread" {
-                driver_args.objects_and_libs.push("-lpthread".to_string());
-            }
-        }
-
-        {
-            match arg.as_str() {
-                "-pie" => {
-                    pie = true;
-                    continue;
-                }
-                "-no-pie" => {
-                    pie = false;
-                    continue;
-                }
-                "-static" => {
-                    static_exe = true;
-                    continue;
-                }
-                "-static-pie" => {
-                    static_pie = true;
-                    continue;
-                }
-                "-shared" => {
-                    shared = true;
-                    continue;
-                }
-                _ => (),
-            }
-        }
-
         compiler_args.push(arg.to_string());
     }
 
@@ -187,6 +195,10 @@ pub(crate) fn parse(args: &[String]) -> Result<Mode> {
     let mode = if are_sources_present {
         Mode::CompileAndLink((compiler_args, linker_args, driver_args))
     } else {
+        // TODO: wrongly prints `-o`
+        if !compiler_args.is_empty() {
+            eprintln!("Unhandled arguments:{:?}", &compiler_args);
+        }
         Mode::LinkOnly(linker_args, driver_args)
     };
     Ok(mode)
