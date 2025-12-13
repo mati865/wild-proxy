@@ -50,7 +50,8 @@ pub struct DriverArgs {
     pub(crate) objects_and_libs: Vec<String>,
     pub(crate) output_kind: OutputKind,
     pub(crate) default_libs: bool,
-    pub(crate) _profiler: bool,
+    pub(crate) profile: bool,
+    pub(crate) coverage: bool,
 }
 
 impl Default for DriverArgs {
@@ -60,7 +61,8 @@ impl Default for DriverArgs {
             objects_and_libs: vec![],
             output_kind: Default::default(),
             default_libs: true,
-            _profiler: false,
+            profile: false,
+            coverage: false,
         }
     }
 }
@@ -77,6 +79,7 @@ pub(crate) fn parse(args: &[String]) -> Result<Mode> {
     let mut compiler_args = Vec::with_capacity(args.len());
     let mut linker_args = Vec::with_capacity(args.len());
     let mut driver_args = DriverArgs::default();
+    let mut unknown_args = Vec::default();
     let mut are_sources_present = false;
 
     let mut pie = true;
@@ -112,23 +115,23 @@ pub(crate) fn parse(args: &[String]) -> Result<Mode> {
             }
 
             match arg.as_str() {
-                "-pie" => {
+                "-pie" | "--pie" => {
                     pie = true;
                     continue;
                 }
-                "-no-pie" => {
+                "-no-pie" | "--no-pie" => {
                     pie = false;
                     continue;
                 }
-                "-static" => {
+                "-static" | "--static" => {
                     static_exe = true;
                     continue;
                 }
-                "-static-pie" => {
+                "-static-pie" | "--static-pie" => {
                     static_pie = true;
                     continue;
                 }
-                "-shared" => {
+                "-shared" | "--shared" => {
                     shared = true;
                     continue;
                 }
@@ -142,9 +145,16 @@ pub(crate) fn parse(args: &[String]) -> Result<Mode> {
                 driver_args.output = output.to_string();
                 compiler_args.push(arg.to_string());
                 continue;
-            }
-            if arg == "-pthread" {
+            } else if arg == "-pthread" || arg == "--pthread" {
                 driver_args.objects_and_libs.push("-lpthread".to_string());
+                compiler_args.push(arg.to_string());
+                continue;
+            } else if arg == "-pg" || arg == "--profile" || arg == "-profile" {
+                driver_args.profile = true;
+                compiler_args.push(arg.to_string());
+                continue;
+            } else if arg == "-coverage" || arg == "--coverage" {
+                driver_args.coverage = true;
                 compiler_args.push(arg.to_string());
                 continue;
             }
@@ -187,7 +197,18 @@ pub(crate) fn parse(args: &[String]) -> Result<Mode> {
             }
         }
 
-        compiler_args.push(arg.to_string());
+        if arg == "-pedantic"
+            || arg == "--pedantic"
+            || arg.starts_with("-f")
+            || arg.starts_with("-m")
+            || arg.starts_with("-W")
+            || arg.starts_with("-O")
+            || arg.starts_with("-D")
+        {
+            compiler_args.push(arg.to_string());
+        } else {
+            unknown_args.push(arg);
+        }
     }
 
     driver_args.output_kind = OutputKind::new(static_pie, static_exe, shared, pie);
@@ -195,9 +216,8 @@ pub(crate) fn parse(args: &[String]) -> Result<Mode> {
     let mode = if are_sources_present {
         Mode::CompileAndLink((compiler_args, linker_args, driver_args))
     } else {
-        // TODO: wrongly prints `-o`
-        if !compiler_args.is_empty() {
-            eprintln!("Unhandled arguments:{:?}", &compiler_args);
+        if !unknown_args.is_empty() {
+            eprintln!("Unhandled arguments: {:?}", &unknown_args);
         }
         Mode::LinkOnly(linker_args, driver_args)
     };

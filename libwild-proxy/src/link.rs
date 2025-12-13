@@ -23,11 +23,19 @@ fn system_library_paths(args: &DriverArgs) -> anyhow::Result<SystemLibraryPaths>
     // 804 │ glibc /usr/lib/grcrt1.o
     // 866 │ glibc /usr/lib/rcrt1.o
     // TODO: Handle others
-    let crt1_name = match args.output_kind {
-        OutputKind::DynamicPie => Some("Scrt1.o"),
-        OutputKind::StaticPie => Some("rcrt1.o"),
-        OutputKind::Dynamic | OutputKind::Static => Some("crt1.o"),
-        OutputKind::SharedObject => None,
+    let crt1_name = if args.profile {
+        if args.output_kind == OutputKind::StaticPie {
+            Some("grcrt1.o")
+        } else {
+            Some("gcrt1.o")
+        }
+    } else {
+        match args.output_kind {
+            OutputKind::DynamicPie => Some("Scrt1.o"),
+            OutputKind::StaticPie => Some("rcrt1.o"),
+            OutputKind::Dynamic | OutputKind::Static => Some("crt1.o"),
+            OutputKind::SharedObject => None,
+        }
     };
     let crti_name = "crti.o";
     let crtn_name = "crtn.o";
@@ -155,6 +163,11 @@ pub(crate) fn link(
         if cpp_mode {
             final_linker_args.extend(["-lstdc++".to_string(), "-lm".to_string()]);
         }
+    }
+    if driver_args.coverage {
+        final_linker_args.push("-lgcov".to_string());
+    }
+    if driver_args.default_libs {
         if driver_args.output_kind == OutputKind::Static
             || driver_args.output_kind == OutputKind::StaticPie
         {
