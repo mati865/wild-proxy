@@ -7,5 +7,6 @@ fn main() -> Result<()> {
         return libwild_proxy::fallback::fallback();
     }
     let args = std::env::args();
-    libwild_proxy::process(args)
+    let binary_name = env!("CARGO_BIN_NAME");
+    libwild_proxy::process(args, binary_name)
 }

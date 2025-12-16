@@ -1,5 +1,5 @@
-use crate::arg_parser::Mode;
-use anyhow::{Context, bail};
+use crate::{arch::target_arch, arg_parser::Mode};
+use anyhow::{Context, Result, bail};
 use std::{
     env::Args,
     os::unix::{fs::PermissionsExt, process::CommandExt},
@@ -7,15 +7,17 @@ use std::{
     process::Command,
 };
 
+mod arch;
 mod arg_parser;
 pub mod fallback;
 mod link;
 mod outputs_cleanup;
 
-pub fn process(mut args: Args) -> anyhow::Result<()> {
-    let zero_position_arg = args
+pub fn process(mut args: Args, binary_name: &str) -> Result<()> {
+    let zero_position_arg = &args
         .next()
         .context("Could not obtain binary name from args")?;
+    let zero_position_path = Path::new(zero_position_arg);
     let args = args
         .filter(|s| !s.starts_with("-fuse-ld="))
         .collect::<Vec<_>>();
@@ -23,13 +25,33 @@ pub fn process(mut args: Args) -> anyhow::Result<()> {
         bail!("--pipe is not supported yet");
     }
 
-    // TODO: Extension if running on Windows
-    let cpp_mode = zero_position_arg.ends_with("++");
-    let parsed = arg_parser::parse(&args)?;
+    let executable_name: String = zero_position_path
+        .file_stem()
+        .map(|stem| stem.to_str().unwrap().to_string())
+        .or_else(|| {
+            std::env::current_exe().ok().and_then(|path| {
+                path.file_stem()
+                    .map(|stem| stem.to_str().unwrap().to_string())
+            })
+        })
+        .with_context(|| "Could not determine binary name")?;
+    let cpp_mode;
+    let target;
+    if executable_name != binary_name {
+        cpp_mode = executable_name.ends_with("++");
+        let target_str = executable_name.rsplit_once("-");
+        target = target_str
+            .map(|(triple, _)| target_arch(triple))
+            .transpose()?;
+    } else {
+        cpp_mode = false;
+        target = None;
+    };
+    let parsed = arg_parser::parse(&args, target)?;
 
     match parsed {
         Mode::CompileOnly => {
-            let compiler_path = find_next_executable(&zero_position_arg)?;
+            let compiler_path = find_next_executable(&zero_position_path)?;
             let mut compiler_command = Command::new(&compiler_path);
             let err = compiler_command.args(&args).exec();
             bail!(
@@ -50,14 +72,15 @@ pub fn process(mut args: Args) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub(crate) fn find_next_executable(zero_position_arg: &str) -> anyhow::Result<PathBuf> {
-    let mut wanted_exe = Path::new(zero_position_arg)
+pub(crate) fn find_next_executable(zero_position_arg: &Path) -> Result<PathBuf> {
+    let mut wanted_exe = zero_position_arg
         .file_stem()
         .context("args[0] has no file stem")?;
     let real_exe = std::env::current_exe().context("Could not get current exe path")?;
     let binary_name = real_exe
         .file_stem()
         .context("Current exe has no file stem")?;
+    // TODO: Maybe just look for gcc or clang string?
     if wanted_exe == binary_name {
         wanted_exe = "cc".as_ref();
     }

@@ -10,7 +10,7 @@ struct SystemLibraryPaths {
     crt1: Option<PathBuf>,
     crti: PathBuf,
     crtn: PathBuf,
-    library_paths: Vec<&'static str>,
+    library_paths: Vec<String>,
 }
 
 fn system_library_paths(args: &DriverArgs) -> anyhow::Result<SystemLibraryPaths> {
@@ -41,7 +41,22 @@ fn system_library_paths(args: &DriverArgs) -> anyhow::Result<SystemLibraryPaths>
     let crtn_name = "crtn.o";
 
     // TODO: figure out how to handle it
-    let potential_paths = ["/usr/lib64", "/lib64", "/lib", "/usr/lib"];
+    let base = if let Some(path) = &args.sysroot {
+        path
+    } else {
+        "/"
+    };
+    let triple_path = format!("{base}/usr/lib/{}-linux-gnu", args.target);
+    let mut potential_paths = Vec::new();
+    if std::fs::exists(&triple_path).is_ok_and(|v| v) {
+        potential_paths.push(triple_path)
+    };
+    potential_paths.extend([
+        format!("{base}/lib64"),
+        format!("{base}/usr/lib64"),
+        format!("{base}/lib"),
+        format!("{base}/usr/lib"),
+    ]);
     let Some(found_path) = potential_paths
         .iter()
         .map(Path::new)
@@ -59,7 +74,7 @@ fn system_library_paths(args: &DriverArgs) -> anyhow::Result<SystemLibraryPaths>
         crt1,
         crti,
         crtn,
-        library_paths: potential_paths.to_vec(),
+        library_paths: potential_paths,
     })
 }
 
@@ -92,7 +107,13 @@ fn gcc_objects(args: &DriverArgs) -> anyhow::Result<GccObjects> {
     let Some(found_path) = potential_paths
         .iter()
         .map(Path::new)
-        .map(|p| p.join("gcc").join("x86_64-pc-linux-gnu"))
+        .flat_map(|p| {
+            let arch = args.target;
+            [
+                p.join("gcc").join(format!("{arch}-pc-linux-gnu")),
+                p.join("gcc").join(format!("{arch}-linux-gnu")),
+            ]
+        })
         .find(|p| p.exists())
     else {
         bail!("todo")
@@ -133,14 +154,18 @@ pub(crate) fn link(
         "--build-id",
         "--eh-frame-hdr",
         "-m",
-        "elf_x86_64",
+        driver_args.target.emulation(),
     ];
     let static_system_libs = ["-lgcc", "-lgcc_eh", "-lc"];
     let shared_system_libs = ["-lgcc", "--as-needed", "-lgcc_s", "--no-as-needed", "-lc"];
     let output_kind_args: &[&str] = match driver_args.output_kind {
-        OutputKind::DynamicPie => &["-pie", "--dynamic-linker", "/lib64/ld-linux-x86-64.so.2"],
+        OutputKind::DynamicPie => &[
+            "-pie",
+            "--dynamic-linker",
+            driver_args.target.dynamic_linker(),
+        ],
         OutputKind::StaticPie => &["-static", "-pie"],
-        OutputKind::Dynamic => &["--dynamic-linker", "/lib64/ld-linux-x86-64.so.2"],
+        OutputKind::Dynamic => &["--dynamic-linker", driver_args.target.dynamic_linker()],
         OutputKind::Static => &["-static"],
         OutputKind::SharedObject => &["-shared"],
     };
@@ -148,6 +173,9 @@ pub(crate) fn link(
     let mut final_linker_args = Vec::from_iter(builtin_args1.iter().map(ToString::to_string));
     final_linker_args.extend(output_kind_args.iter().map(ToString::to_string));
     final_linker_args.extend(["-o".to_string(), driver_args.output]);
+
+    // TODO: Add `--sysroot` when not running natively, Clang doesn't do it.
+
     if let Some(crt1) = system_library_paths.crt1 {
         final_linker_args.push(crt1.display().to_string());
     }

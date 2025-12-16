@@ -1,4 +1,5 @@
-use anyhow::Result;
+use crate::arch::{Arch, target_arch};
+use anyhow::{Context, Result};
 
 pub type LinkerArgs = Vec<String>;
 pub type CompilerArgs = Vec<String>;
@@ -52,6 +53,8 @@ pub struct DriverArgs {
     pub(crate) default_libs: bool,
     pub(crate) profile: bool,
     pub(crate) coverage: bool,
+    pub(crate) target: Arch,
+    pub(crate) sysroot: Option<String>,
 }
 
 impl Default for DriverArgs {
@@ -63,12 +66,15 @@ impl Default for DriverArgs {
             default_libs: true,
             profile: false,
             coverage: false,
+            // TODO: get it at compile time
+            target: Arch::X86_64,
+            sysroot: None,
         }
     }
 }
 
 // TODO: optimise
-pub(crate) fn parse(args: &[String]) -> Result<Mode> {
+pub(crate) fn parse(args: &[String], target: Option<Arch>) -> Result<Mode> {
     // Exit early if not linking at all.
     if args.iter().map(AsRef::as_ref).any(is_compile_only_arg) {
         return Ok(Mode::CompileOnly);
@@ -80,8 +86,12 @@ pub(crate) fn parse(args: &[String]) -> Result<Mode> {
     let mut linker_args = Vec::with_capacity(args.len());
     let mut driver_args = DriverArgs::default();
     let mut unknown_args = Vec::default();
-    let mut are_sources_present = false;
 
+    if let Some(target) = target {
+        driver_args.target = target;
+    }
+
+    let mut are_sources_present = false;
     let mut pie = true;
     let mut shared = false;
     let mut static_exe = false;
@@ -90,10 +100,7 @@ pub(crate) fn parse(args: &[String]) -> Result<Mode> {
     while let Some(arg) = args.next() {
         // Driver args
         {
-            let found = ["-T", "--sysroot"].iter().any(|&linker_arg| {
-                parse_and_append_arg(linker_arg, &arg, &mut args, &mut linker_args)
-            });
-            if found {
+            if parse_and_append_arg("-T", &arg, &mut args, &mut linker_args) {
                 continue;
             }
             if let Some(args) = arg.strip_prefix("-Wl,") {
@@ -157,6 +164,25 @@ pub(crate) fn parse(args: &[String]) -> Result<Mode> {
                 driver_args.coverage = true;
                 compiler_args.push(arg.to_string());
                 continue;
+            } else if let Some(target) = arg.strip_prefix("--target=") {
+                driver_args.target = target_arch(target)?;
+                compiler_args.push(arg.to_string());
+                continue;
+            } else if arg == "-target" {
+                let target = args
+                    .next()
+                    .with_context(|| format!("Unexpected end of arguments after: {arg}"))?;
+                driver_args.target = target_arch(target)?;
+                compiler_args.extend([arg.to_string(), target.to_string()]);
+                continue;
+            }
+
+            if let Some(path) = parse_arg("--sysroot", &arg, &mut args) {
+                let sysroot_arg = format!("--sysroot={}", path);
+                compiler_args.push(sysroot_arg.clone());
+                linker_args.push(sysroot_arg);
+                driver_args.sysroot = Some(path);
+                continue;
             }
         }
 
@@ -179,7 +205,6 @@ pub(crate) fn parse(args: &[String]) -> Result<Mode> {
         }
 
         {
-            // TODO: if arg doesn't start with `-`, store it separately to add between start and end
             let found = ["-l", "-L"].iter().any(|&linker_arg| {
                 parse_and_append_arg(
                     linker_arg,

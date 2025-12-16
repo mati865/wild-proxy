@@ -20,11 +20,12 @@ pub fn fallback() -> Result<()> {
     let zero_position_arg = exe_with_args
         .next()
         .context("Could not obtain binary name from args")?;
+    let zero_position_path = Path::new(&zero_position_arg);
     let args = exe_with_args
         .filter(|s| !s.starts_with("-fuse-ld="))
         .collect::<Vec<_>>();
 
-    let compiler_path = find_next_executable(&zero_position_arg)?;
+    let compiler_path = find_next_executable(&zero_position_path)?;
     let mut compiler_command = Command::new(&compiler_path);
 
     if args.iter().any(|arg| arg == "--pipe") {
