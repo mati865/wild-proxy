@@ -123,7 +123,7 @@ fn gcc_objects(args: &DriverArgs) -> anyhow::Result<GccObjects> {
     let mut gcc_versions = read_dir(&found_path)?
         .filter_map(|dir| dir.map(|dir| (dir.file_name(), dir.path())).ok())
         .filter_map(|(file_name, path)| {
-            let mut version_parts = file_name.to_str()?.splitn(2, '.');
+            let mut version_parts = file_name.to_str()?.splitn(3, '.');
             let major: u8 = version_parts.next().unwrap().parse().unwrap();
             let minor: u8 = version_parts
                 .next()
