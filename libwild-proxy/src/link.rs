@@ -103,6 +103,7 @@ fn gcc_objects(args: &DriverArgs) -> anyhow::Result<GccObjects> {
     let end_object_name = "crtend.o";
 
     // TODO: Figure out the logic
+    // TODO: handle other distros like RHEL and *SUSE
     let potential_paths = ["/usr/lib64", "/usr/lib"];
     let Some(found_path) = potential_paths
         .iter()
@@ -119,17 +120,23 @@ fn gcc_objects(args: &DriverArgs) -> anyhow::Result<GccObjects> {
         bail!("todo")
     };
 
-    // TODO: handle others
-    // TODO: semver might be an overkill
     let mut gcc_versions = read_dir(&found_path)?
         .filter_map(|dir| dir.map(|dir| (dir.file_name(), dir.path())).ok())
         .filter_map(|(file_name, path)| {
-            semver::Version::parse(&file_name.to_string_lossy())
-                .ok()
-                .map(|version| (version, path))
+            let mut version_parts = file_name.to_str()?.splitn(2, '.');
+            let major: u8 = version_parts.next().unwrap().parse().unwrap();
+            let minor: u8 = version_parts
+                .next()
+                .map(|str| str.parse().expect("GCC version components are numbers"))
+                .unwrap_or(0);
+            let patch: u8 = version_parts
+                .next()
+                .map(|str| str.parse().expect("GCC version components are numbers"))
+                .unwrap_or(0);
+            Some(((major, minor, patch), path))
         })
         .collect::<BTreeMap<_, _>>();
-
+    assert!(!gcc_versions.is_empty(), "Could not find GCC directory");
     let lib_dir = gcc_versions.pop_last().unwrap().1;
     let begin_object = lib_dir.join(begin_object_name);
     let end_object = lib_dir.join(end_object_name);
