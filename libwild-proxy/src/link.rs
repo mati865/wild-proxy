@@ -46,7 +46,7 @@ fn system_library_paths(args: &DriverArgs) -> anyhow::Result<SystemLibraryPaths>
     } else {
         "/"
     };
-    let triple_path = format!("{base}/usr/lib/{}-linux-gnu", args.target);
+    let triple_path = format!("{base}/usr/lib/{}-linux-gnu", args.arch);
     let mut potential_paths = Vec::new();
     if std::fs::exists(&triple_path).is_ok_and(|v| v) {
         potential_paths.push(triple_path)
@@ -109,7 +109,7 @@ fn gcc_objects(args: &DriverArgs) -> anyhow::Result<GccObjects> {
         .iter()
         .map(Path::new)
         .flat_map(|p| {
-            let arch = args.target;
+            let arch = args.arch;
             [
                 p.join("gcc").join(format!("{arch}-pc-linux-gnu")),
                 p.join("gcc").join(format!("{arch}-linux-gnu")),
@@ -161,7 +161,7 @@ pub(crate) fn link(
         "--build-id",
         "--eh-frame-hdr",
         "-m",
-        driver_args.target.emulation(),
+        driver_args.arch.emulation(),
     ];
     let static_system_libs = ["-lgcc", "-lgcc_eh", "-lc"];
     let shared_system_libs = ["-lgcc", "--as-needed", "-lgcc_s", "--no-as-needed", "-lc"];
@@ -169,10 +169,10 @@ pub(crate) fn link(
         OutputKind::DynamicPie => &[
             "-pie",
             "--dynamic-linker",
-            driver_args.target.dynamic_linker(),
+            driver_args.arch.dynamic_linker(),
         ],
         OutputKind::StaticPie => &["-static", "-pie"],
-        OutputKind::Dynamic => &["--dynamic-linker", driver_args.target.dynamic_linker()],
+        OutputKind::Dynamic => &["--dynamic-linker", driver_args.arch.dynamic_linker()],
         OutputKind::Static => &["-static"],
         OutputKind::SharedObject => &["-shared"],
     };
@@ -210,6 +210,9 @@ pub(crate) fn link(
         } else {
             final_linker_args.extend(shared_system_libs.iter().map(ToString::to_string));
         }
+    }
+    if driver_args.pthread {
+        final_linker_args.push("-pthread".to_string());
     }
     final_linker_args.push(gcc_objects.end_object.display().to_string());
     final_linker_args.push(system_library_paths.crtn.display().to_string());

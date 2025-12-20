@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 pub type LinkerArgs = Vec<String>;
 pub type CompilerArgs = Vec<String>;
 
+#[derive(Debug, PartialEq)]
 pub enum Mode {
     CompileOnly,
     LinkOnly(LinkerArgs, DriverArgs),
@@ -44,7 +45,7 @@ impl OutputKind {
 }
 
 /// Arguments for both
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 #[non_exhaustive]
 pub struct DriverArgs {
     pub(crate) output: String,
@@ -53,8 +54,9 @@ pub struct DriverArgs {
     pub(crate) default_libs: bool,
     pub(crate) profile: bool,
     pub(crate) coverage: bool,
-    pub(crate) target: Arch,
+    pub(crate) arch: Arch,
     pub(crate) sysroot: Option<String>,
+    pub(crate) pthread: bool,
 }
 
 impl Default for DriverArgs {
@@ -67,8 +69,9 @@ impl Default for DriverArgs {
             profile: false,
             coverage: false,
             // TODO: get it at compile time
-            target: Arch::X86_64,
+            arch: Arch::X86_64,
             sysroot: None,
+            pthread: false,
         }
     }
 }
@@ -88,7 +91,7 @@ pub(crate) fn parse(args: &[String], target: Option<Arch>) -> Result<Mode> {
     let mut unknown_args = Vec::default();
 
     if let Some(target) = target {
-        driver_args.target = target;
+        driver_args.arch = target;
     }
 
     let mut are_sources_present = false;
@@ -101,6 +104,9 @@ pub(crate) fn parse(args: &[String], target: Option<Arch>) -> Result<Mode> {
         // Driver args
         {
             if parse_and_append_arg("-T", &arg, &mut args, &mut linker_args) {
+                continue;
+            }
+            if parse_and_append_arg("--script", &arg, &mut args, &mut linker_args) {
                 continue;
             }
             if let Some(args) = arg.strip_prefix("-Wl,") {
@@ -153,10 +159,14 @@ pub(crate) fn parse(args: &[String], target: Option<Arch>) -> Result<Mode> {
                 compiler_args.push(arg.to_string());
                 continue;
             } else if arg == "-pthread" || arg == "--pthread" {
-                driver_args.objects_and_libs.push("-lpthread".to_string());
+                driver_args.pthread = true;
                 compiler_args.push(arg.to_string());
                 continue;
-            } else if arg == "-pg" || arg == "--profile" || arg == "-profile" {
+            } else if arg == "-no-pthread" || arg == "--no-pthread" {
+                driver_args.pthread = false;
+                compiler_args.push(arg.to_string());
+                continue;
+            } else if arg == "-pg" || arg == "--profile" {
                 driver_args.profile = true;
                 compiler_args.push(arg.to_string());
                 continue;
@@ -165,14 +175,14 @@ pub(crate) fn parse(args: &[String], target: Option<Arch>) -> Result<Mode> {
                 compiler_args.push(arg.to_string());
                 continue;
             } else if let Some(target) = arg.strip_prefix("--target=") {
-                driver_args.target = target_arch(target)?;
+                driver_args.arch = target_arch(target)?;
                 compiler_args.push(arg.to_string());
                 continue;
             } else if arg == "-target" {
                 let target = args
                     .next()
                     .with_context(|| format!("Unexpected end of arguments after: {arg}"))?;
-                driver_args.target = target_arch(target)?;
+                driver_args.arch = target_arch(target)?;
                 compiler_args.extend([arg.to_string(), target.to_string()]);
                 continue;
             }
@@ -240,6 +250,8 @@ pub(crate) fn parse(args: &[String], target: Option<Arch>) -> Result<Mode> {
 
     let mode = if are_sources_present {
         Mode::CompileAndLink((compiler_args, linker_args, driver_args))
+    } else if driver_args.objects_and_libs.is_empty() {
+        Mode::CompileOnly
     } else {
         if !unknown_args.is_empty() {
             eprintln!("Unhandled arguments: {:?}", &unknown_args);
@@ -294,5 +306,150 @@ fn parse_arg<'a>(
         ),
         Some(rest) => Some(rest.trim_start_matches("=").to_string()),
         None => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn no_args() {
+        let args = vec![];
+        assert!(matches!(parse(&args, None), Ok(Mode::CompileOnly)));
+    }
+
+    #[test]
+    fn compile_only_mode() {
+        let args = vec!["foo.c".to_string(), "-c".to_string()];
+        assert_eq!(Mode::CompileOnly, parse(&args, None).unwrap());
+    }
+
+    #[test]
+    fn compile_and_link_mode_with_sources() {
+        let args = vec!["foo.c".to_string()];
+        assert!(matches!(parse(&args, None), Ok(Mode::CompileAndLink(_))));
+    }
+
+    #[test]
+    fn compile_and_link_mode_with_sources_and_objects() {
+        let args = vec!["foo.c".to_string(), "bar.o".to_string()];
+        assert!(matches!(parse(&args, None), Ok(Mode::CompileAndLink(_))));
+    }
+
+    #[test]
+    fn link_mode() {
+        let args = vec!["foo.o".to_string()];
+        assert!(matches!(parse(&args, None), Ok(Mode::LinkOnly(_, _))));
+    }
+
+    #[test]
+    fn default_output_kind() {
+        let args = vec!["foo.o".to_string()];
+        let Mode::LinkOnly(_, driver_args) = parse(&args, None).unwrap() else {
+            panic!()
+        };
+        assert_eq!(driver_args.output_kind, OutputKind::DynamicPie);
+    }
+
+    #[test]
+    fn linker_args() {
+        let args = [
+            "-L",
+            "foo",
+            "-lfoo",
+            "bar.o",
+            "-Lbaz",
+            "-lbaz",
+            "-T",
+            "/foo",
+            "--script",
+            "/bar",
+            "-Wl,-v,-z,now",
+            "-Xlinker",
+            "--build-id",
+        ]
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>();
+        let Mode::LinkOnly(linker_args, driver_args) = parse(&args, None).unwrap() else {
+            panic!("Wrong driver mode")
+        };
+        assert_eq!(
+            linker_args,
+            [
+                "-T",
+                "/foo",
+                "--script",
+                "/bar",
+                "-v",
+                "-z",
+                "now",
+                "--build-id"
+            ]
+        );
+        assert_eq!(
+            driver_args.objects_and_libs,
+            ["-L", "foo", "-lfoo", "bar.o", "-Lbaz", "-lbaz"]
+        );
+    }
+
+    #[test]
+    fn pthread_arg() {
+        let mut args = vec!["foo.o".to_string()];
+        assert!(matches!(
+            parse(&args, None),
+            Ok(Mode::LinkOnly(_, DriverArgs { pthread: false, .. }))
+        ));
+        args.push("-no-pthread".to_string());
+        assert!(matches!(
+            parse(&args, None),
+            Ok(Mode::LinkOnly(_, DriverArgs { pthread: false, .. }))
+        ));
+        args.push("-pthread".to_string());
+        assert!(matches!(
+            parse(&args, None),
+            Ok(Mode::LinkOnly(_, DriverArgs { pthread: true, .. }))
+        ));
+        args.push("--no-pthread".to_string());
+        assert!(matches!(
+            parse(&args, None),
+            Ok(Mode::LinkOnly(_, DriverArgs { pthread: false, .. }))
+        ));
+        args.push("--pthread".to_string());
+        assert!(matches!(
+            parse(&args, None),
+            Ok(Mode::LinkOnly(_, DriverArgs { pthread: true, .. }))
+        ));
+    }
+
+    #[test]
+    fn target_arg() {
+        let mut args = vec![
+            "foo.o".to_string(),
+            "-target".to_string(),
+            "x86_64-linux-gnu".to_string(),
+        ];
+        assert!(matches!(
+            parse(&args, None),
+            Ok(Mode::LinkOnly(
+                _,
+                DriverArgs {
+                    arch: Arch::X86_64,
+                    ..
+                }
+            ))
+        ));
+        args.push("--target=aarch64-pc-linux-gnu".to_string());
+        assert!(matches!(
+            parse(&args, None),
+            Ok(Mode::LinkOnly(
+                _,
+                DriverArgs {
+                    arch: Arch::Aarch64,
+                    ..
+                }
+            ))
+        ));
     }
 }
