@@ -452,4 +452,24 @@ mod tests {
             ))
         ));
     }
+
+    #[test]
+    fn coverage_arg() {
+        let mut args = vec!["foo.o".to_string()];
+        assert!(matches!(
+            parse(&args, None),
+            Ok(Mode::LinkOnly(
+                _,
+                DriverArgs {
+                    coverage: false,
+                    ..
+                }
+            ))
+        ));
+        args.push("--coverage".to_string());
+        assert!(matches!(
+            parse(&args, None),
+            Ok(Mode::LinkOnly(_, DriverArgs { coverage: true, .. }))
+        ));
+    }
 }
