@@ -105,9 +105,6 @@ pub(crate) fn parse(args: &[String], target: Option<Arch>) -> Result<Mode> {
             if parse_and_append_arg("-T", &arg, &mut args, &mut linker_args) {
                 continue;
             }
-            if parse_and_append_arg("--script", &arg, &mut args, &mut linker_args) {
-                continue;
-            }
             if let Some(args) = arg.strip_prefix("-Wl,") {
                 linker_args.extend(args.split(',').map(|x| x.into()));
                 continue;
@@ -362,8 +359,7 @@ mod tests {
             "-lbaz",
             "-T",
             "/foo",
-            "--script",
-            "/bar",
+            "-T/bar",
             "-Wl,-v,-z,now",
             "-Xlinker",
             "--build-id",
@@ -376,16 +372,7 @@ mod tests {
         };
         assert_eq!(
             linker_args,
-            [
-                "-T",
-                "/foo",
-                "--script",
-                "/bar",
-                "-v",
-                "-z",
-                "now",
-                "--build-id"
-            ]
+            ["-T", "/foo", "-T/bar", "-v", "-z", "now", "--build-id"]
         );
         assert_eq!(
             driver_args.objects_and_libs,
