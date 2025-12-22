@@ -472,4 +472,73 @@ mod tests {
             Ok(Mode::LinkOnly(_, DriverArgs { coverage: true, .. }))
         ));
     }
+
+    #[test]
+    fn sysroot_arg() {
+        let mut args = vec!["foo.o".to_string(), "--sysroot=/foo".to_string()];
+        assert!(matches!(
+            parse(&args, None),
+            Ok(Mode::LinkOnly(
+                _,
+                DriverArgs {
+                    sysroot: Some(ref s),
+                    ..
+                }
+            )) if s == "/foo"
+        ));
+        args.extend(["--sysroot".to_string(), "/bar".to_string()]);
+        assert!(matches!(
+            parse(&args, None),
+            Ok(Mode::LinkOnly(
+                _,
+                DriverArgs {
+                    sysroot: Some(ref s),
+                    ..
+                }
+            )) if dbg!(s) == "/bar"
+        ))
+    }
+
+    #[test]
+    fn nodefaultlibs_arg() {
+        let args = vec!["foo.o".to_string(), "--nodefaultlibs".to_string()];
+        assert!(matches!(
+            parse(&args, None),
+            Ok(Mode::LinkOnly(
+                _,
+                DriverArgs {
+                    default_libs: true,
+                    ..
+                }
+            ))
+        ));
+    }
+
+    #[test]
+    fn profile_arg() {
+        let args = vec![
+            "foo.o".to_string(),
+            "--profile".to_string(),
+            "-profile".to_string(),
+        ];
+        assert!(matches!(
+            parse(&args, None),
+            Ok(Mode::LinkOnly(_, DriverArgs { profile: true, .. }))
+        ));
+    }
+
+    #[test]
+    fn pg_arg() {
+        let args = vec!["foo.o".to_string(), "-pg".to_string()];
+        assert!(matches!(
+            parse(&args, None),
+            Ok(Mode::LinkOnly(_, DriverArgs { profile: true, .. }))
+        ));
+    }
+
+    #[test]
+    fn unknown_arg() {
+        let args = vec!["foo.o".to_string(), "--unknown".to_string()];
+        assert!(matches!(parse(&args, None), Ok(Mode::LinkOnly(_, _))));
+    }
 }
