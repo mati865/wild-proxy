@@ -1,4 +1,4 @@
-use crate::arg_parser::{DriverArgs, LinkerArgs, OutputKind};
+use crate::args::{DriverArgs, LinkerArgs, OutputKind};
 use anyhow::bail;
 use std::{
     collections::BTreeMap,

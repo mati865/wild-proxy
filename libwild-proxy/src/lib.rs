@@ -1,4 +1,4 @@
-use crate::{arch::target_arch, arg_parser::Mode};
+use crate::{arch::target_arch, args::Mode};
 use anyhow::{Context, Result, bail};
 use std::{
     env::Args,
@@ -8,7 +8,7 @@ use std::{
 };
 
 mod arch;
-mod arg_parser;
+mod args;
 pub mod fallback;
 mod link;
 mod outputs_cleanup;
@@ -47,7 +47,7 @@ pub fn process(mut args: Args, binary_name: &str) -> Result<()> {
         cpp_mode = false;
         target = None;
     };
-    let parsed = arg_parser::parse(&args, target)?;
+    let parsed = args::parse(&args, target)?;
 
     match parsed {
         Mode::CompileOnly => {
