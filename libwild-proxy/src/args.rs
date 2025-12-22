@@ -68,8 +68,7 @@ impl Default for DriverArgs {
             default_libs: true,
             profile: false,
             coverage: false,
-            // TODO: get it at compile time
-            arch: Arch::X86_64,
+            arch: Arch::default(),
             sysroot: None,
             pthread: false,
         }

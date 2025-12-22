@@ -8,6 +8,7 @@ use std::{
 };
 
 mod arch;
+mod arg_parser;
 mod args;
 pub mod fallback;
 mod link;

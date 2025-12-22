@@ -50,6 +50,23 @@ impl FromStr for Arch {
     }
 }
 
+impl Default for Arch {
+    fn default() -> Self {
+        #[cfg(target_arch = "x86_64")]
+        {
+            Self::X86_64
+        }
+        #[cfg(target_arch = "aarch64")]
+        {
+            Self::Aarch64
+        }
+        #[cfg(target_arch = "riscv64")]
+        {
+            Self::Riscv64
+        }
+    }
+}
+
 /// Parse target arch from the triple and verify it's a supported target.
 pub(crate) fn target_arch(string: &str) -> Result<Arch> {
     let (arch, rest) = string
