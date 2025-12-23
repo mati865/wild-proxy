@@ -1,4 +1,4 @@
-use crate::args::{DriverArgs, LinkerArgs, OutputKind};
+use crate::args::{Args, OutputKind};
 use anyhow::bail;
 use std::{
     collections::BTreeMap,
@@ -13,7 +13,7 @@ struct SystemLibraryPaths {
     library_paths: Vec<String>,
 }
 
-fn system_library_paths(args: &DriverArgs) -> anyhow::Result<SystemLibraryPaths> {
+fn system_library_paths(args: &Args) -> anyhow::Result<SystemLibraryPaths> {
     // 535 │ glibc /usr/lib/Mcrt1.o
     // 536 │ glibc /usr/lib/Scrt1.o
     // 539 │ glibc /usr/lib/crt1.o
@@ -84,7 +84,7 @@ struct GccObjects {
     lib_dir: PathBuf,
 }
 
-fn gcc_objects(args: &DriverArgs) -> anyhow::Result<GccObjects> {
+fn gcc_objects(args: &Args) -> anyhow::Result<GccObjects> {
     // 952 │ gcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtbegin.o
     // 953 │ gcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtbeginS.o
     // 954 │ gcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtbeginT.o
@@ -148,38 +148,30 @@ fn gcc_objects(args: &DriverArgs) -> anyhow::Result<GccObjects> {
     })
 }
 
-pub(crate) fn link(
-    linker_args: LinkerArgs,
-    driver_args: DriverArgs,
-    cpp_mode: bool,
-) -> anyhow::Result<()> {
-    let system_library_paths = system_library_paths(&driver_args)?;
-    let gcc_objects = gcc_objects(&driver_args)?;
+pub(crate) fn link(args: &Args, cpp_mode: bool) -> anyhow::Result<()> {
+    let system_library_paths = system_library_paths(&args)?;
+    let gcc_objects = gcc_objects(&args)?;
     // Based on Clang
     let builtin_args1 = [
         "--hash-style=gnu",
         "--build-id",
         "--eh-frame-hdr",
         "-m",
-        driver_args.arch.emulation(),
+        args.arch.emulation(),
     ];
     let static_system_libs = ["-lgcc", "-lgcc_eh", "-lc"];
     let shared_system_libs = ["-lgcc", "--as-needed", "-lgcc_s", "--no-as-needed", "-lc"];
-    let output_kind_args: &[&str] = match driver_args.output_kind {
-        OutputKind::DynamicPie => &[
-            "-pie",
-            "--dynamic-linker",
-            driver_args.arch.dynamic_linker(),
-        ],
+    let output_kind_args: &[&str] = match args.output_kind {
+        OutputKind::DynamicPie => &["-pie", "--dynamic-linker", args.arch.dynamic_linker()],
         OutputKind::StaticPie => &["-static", "-pie"],
-        OutputKind::Dynamic => &["--dynamic-linker", driver_args.arch.dynamic_linker()],
+        OutputKind::Dynamic => &["--dynamic-linker", args.arch.dynamic_linker()],
         OutputKind::Static => &["-static"],
         OutputKind::SharedObject => &["-shared"],
     };
 
     let mut final_linker_args = Vec::from_iter(builtin_args1.iter().map(ToString::to_string));
     final_linker_args.extend(output_kind_args.iter().map(ToString::to_string));
-    final_linker_args.extend(["-o".to_string(), driver_args.output]);
+    final_linker_args.extend(["-o".to_string(), args.output.to_string()]);
 
     // TODO: Add `--sysroot` when not running natively, Clang doesn't do it.
 
@@ -192,26 +184,26 @@ pub(crate) fn link(
     for path in system_library_paths.library_paths {
         final_linker_args.push(format!("-L{}", path));
     }
-    final_linker_args.extend(driver_args.objects_and_libs);
-    final_linker_args.extend(linker_args.iter().map(ToString::to_string));
-    if driver_args.default_libs {
+    // TODO: Do it better, probably move to parsing part
+    final_linker_args.extend(args.objects.iter().map(ToString::to_string));
+    final_linker_args.extend(args.additional_libs.iter().map(|lib| format! {"-l{lib}"}));
+    final_linker_args.extend(args.linker_args.iter().map(ToString::to_string));
+    if !args.nodefaultlibs {
         if cpp_mode {
             final_linker_args.extend(["-lstdc++".to_string(), "-lm".to_string()]);
         }
     }
-    if driver_args.coverage {
+    if args.coverage {
         final_linker_args.push("-lgcov".to_string());
     }
-    if driver_args.default_libs {
-        if driver_args.output_kind == OutputKind::Static
-            || driver_args.output_kind == OutputKind::StaticPie
-        {
+    if !args.nodefaultlibs {
+        if args.output_kind == OutputKind::Static || args.output_kind == OutputKind::StaticPie {
             final_linker_args.extend(static_system_libs.iter().map(ToString::to_string));
         } else {
             final_linker_args.extend(shared_system_libs.iter().map(ToString::to_string));
         }
     }
-    if driver_args.pthread {
+    if args.pthread {
         final_linker_args.push("-pthread".to_string());
     }
     final_linker_args.push(gcc_objects.end_object.display().to_string());
