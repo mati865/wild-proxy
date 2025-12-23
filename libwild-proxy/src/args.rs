@@ -481,19 +481,19 @@ mod tests {
                     sysroot: Some(ref s),
                     ..
                 }
-            )) if dbg!(s) == "/bar"
+            )) if s == "/bar"
         ))
     }
 
     #[test]
     fn nodefaultlibs_arg() {
-        let args = vec!["foo.o".to_string(), "--nodefaultlibs".to_string()];
+        let args = vec!["foo.o".to_string(), "-nodefaultlibs".to_string()];
         assert!(matches!(
             parse(&args, None),
             Ok(Mode::LinkOnly(
                 _,
                 DriverArgs {
-                    default_libs: true,
+                    default_libs: false,
                     ..
                 }
             ))

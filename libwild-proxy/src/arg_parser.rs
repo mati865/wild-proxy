@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use anyhow::{Context, Result, bail};
 use std::collections::HashMap;
 
@@ -11,6 +13,7 @@ struct ArgParser<'a> {
     long_args: HashMap<&'a str, Arg<'a>>,
     short_flags: HashMap<&'a str, Flag<'a>>,
     long_flags: HashMap<&'a str, Flag<'a>>,
+    unknown_args: Vec<&'a str>,
 }
 
 enum Value<'a, 'b> {
@@ -167,10 +170,10 @@ impl<'a> ArgParser<'a> {
         }
     }
 
-    fn parse_flag(&mut self, arg: &str) -> bool {
-        let (stripped, is_long) = if let Some(s) = arg.strip_prefix("--") {
+    fn parse_flag(&mut self, raw_arg: &str) -> bool {
+        let (stripped, is_long) = if let Some(s) = raw_arg.strip_prefix("--") {
             (s, true)
-        } else if let Some(s) = arg.strip_prefix("-") {
+        } else if let Some(s) = raw_arg.strip_prefix("-") {
             (s, false)
         } else {
             return false;
@@ -198,10 +201,14 @@ impl<'a> ArgParser<'a> {
         false
     }
 
-    fn parse_arg(&mut self, arg: &'a str, args_iter: &mut impl Iterator<Item = &'a str>) -> bool {
-        let (stripped, is_long) = if let Some(s) = arg.strip_prefix("--") {
+    fn parse_arg(
+        &mut self,
+        raw_arg: &'a str,
+        args_iter: &mut impl Iterator<Item = &'a str>,
+    ) -> bool {
+        let (stripped, is_long) = if let Some(s) = raw_arg.strip_prefix("--") {
             (s, true)
-        } else if let Some(s) = arg.strip_prefix("-") {
+        } else if let Some(s) = raw_arg.strip_prefix("-") {
             (s, false)
         } else {
             return false;
@@ -225,7 +232,7 @@ impl<'a> ArgParser<'a> {
                     .find(|&&key| stripped.starts_with(key))
                     .map(|&key| (&arg_map[key], stripped.strip_prefix(key).unwrap()))
             } else {
-                todo!()
+                return false;
             }
         };
 
@@ -248,19 +255,29 @@ impl<'a> ArgParser<'a> {
         false
     }
 
+    fn handle_unknown_arg(&mut self, arg: &'a str) -> bool {
+        if arg.starts_with('-') {
+            self.unknown_args.push(arg);
+            return true;
+        }
+        false
+    }
+
     fn parse(&mut self, args: &[&'a str]) {
         let mut args_iter = args.into_iter().copied();
         while let Some(arg) = args_iter.next() {
-            if !self.parse_flag(arg) && !self.parse_arg(arg, &mut args_iter) {
-                // Neither a flag nor an argument, so it's unprefixed.
+            if !self.parse_flag(arg)
+                && !self.parse_arg(arg, &mut args_iter)
+                && !self.handle_unknown_arg(arg)
+            {
+                // Neither a flag nor an argument, so it's an object or source file.
                 // TODO: Handle it
-                self.unprefixed_args.push(arg);
+                self.args.objects_and_sources.push(arg);
             }
         }
     }
 }
 
-// TODO: move
 #[derive(Debug)]
 struct Args<'a> {
     pthread: bool,
@@ -271,6 +288,17 @@ struct Args<'a> {
     static_exe: bool,
     static_pie: bool,
     linker_args: Vec<&'a str>,
+    additional_libs: Vec<&'a str>,
+    additional_search_paths: Vec<&'a str>,
+    compiler_b_args: Vec<&'a str>,
+    nodefaultlibs: bool,
+    nostartfiles: bool,
+    nostdlib: bool,
+    coverage: bool,
+    profile: bool,
+    target: Option<&'a str>,
+    language: Option<&'a str>,
+    objects_and_sources: Vec<&'a str>,
 }
 
 impl Default for Args<'_> {
@@ -284,6 +312,17 @@ impl Default for Args<'_> {
             static_exe: false,
             static_pie: false,
             linker_args: vec![],
+            additional_libs: vec![],
+            additional_search_paths: vec![],
+            compiler_b_args: vec![],
+            nodefaultlibs: false,
+            nostartfiles: false,
+            nostdlib: false,
+            coverage: false,
+            profile: false,
+            target: None,
+            language: None,
+            objects_and_sources: vec![],
         }
     }
 }
@@ -327,6 +366,69 @@ fn setup_parser<'a>() -> Result<ArgParser<'a>> {
         .build()?;
 
     parser
+        .declare_flag()
+        .short("nodefaultlibs")
+        .bind(|args| &mut args.nodefaultlibs)
+        .build()?;
+
+    parser
+        .declare_flag()
+        .long("nostartfiles")
+        .bind(|args| &mut args.nostartfiles)
+        .build()?;
+
+    parser
+        .declare_flag()
+        .long("nostdlib")
+        .bind(|args| &mut args.nostdlib)
+        .build()?;
+
+    parser
+        .declare_flag()
+        .long("coverage")
+        .short("coverage")
+        .bind(|args| &mut args.coverage)
+        .build()?;
+
+    parser
+        .declare_flag()
+        .long("profile")
+        .short("-pg")
+        .bind(|args| &mut args.profile)
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("x")
+        .bind(|args| Value::Single(&mut args.language))
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("B")
+        .bind(|args| Value::Multi(&mut args.compiler_b_args))
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("l")
+        .bind(|args| Value::Multi(&mut args.additional_libs))
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("L")
+        .bind(|args| Value::Multi(&mut args.additional_search_paths))
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("target")
+        .long("target")
+        .bind(|args| Value::Single(&mut args.target))
+        .build()?;
+
+    parser
         .declare_arg()
         .long("sysroot")
         .bind(|args| Value::Single(&mut args.sysroot))
@@ -342,6 +444,12 @@ fn setup_parser<'a>() -> Result<ArgParser<'a>> {
         .declare_arg()
         .short("Wl")
         .with_separator(',')
+        .bind(|args| Value::Multi(&mut args.linker_args))
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("Xlinker")
         .bind(|args| Value::Multi(&mut args.linker_args))
         .build()?;
 
@@ -385,5 +493,87 @@ mod tests {
         let mut parser = setup_parser().unwrap();
         parser.parse(&["-Wl,-z,text", "-Wl=-z,now"]);
         assert_eq!(parser.args.linker_args, vec!["-z", "text", "-z", "now"]);
+        parser.parse(&["-Xlinker", "-z,relro"]);
+        assert_eq!(
+            parser.args.linker_args,
+            vec!["-z", "text", "-z", "now", "-z,relro"]
+        );
+    }
+
+    #[test]
+    fn compiler_args_parsing() {
+        let mut parser = setup_parser().unwrap();
+        parser.parse(&["-B/foo", "-B", "/bar", "-Bstatic"]);
+        assert_eq!(parser.args.compiler_b_args, vec!["/foo", "/bar", "static"]);
+    }
+
+    #[test]
+    fn additional_libs_parsing() {
+        let mut parser = setup_parser().unwrap();
+        parser.parse(&["-lfoo", "-lbar"]);
+        assert_eq!(parser.args.additional_libs, vec!["foo", "bar"]);
+    }
+
+    #[test]
+    fn additional_search_paths_parsing() {
+        let mut parser = setup_parser().unwrap();
+        parser.parse(&["-L/foo", "-L", "/bar/baz"]);
+        assert_eq!(
+            parser.args.additional_search_paths,
+            vec!["/foo", "/bar/baz"]
+        );
+    }
+
+    #[test]
+    fn target_parsing() {
+        let mut parser = setup_parser().unwrap();
+        parser.parse(&["--target=x86_64-linux-gnu"]);
+        assert_eq!(parser.args.target, Some("x86_64-linux-gnu"));
+        parser.parse(&["-target", "aarch64-linux-gnu"]);
+        assert_eq!(parser.args.target, Some("aarch64-linux-gnu"))
+    }
+
+    #[test]
+    fn coverage_parsing() {
+        let mut parser = setup_parser().unwrap();
+        assert!(!parser.args.coverage);
+        parser.parse(&["--coverage"]);
+        assert!(parser.args.coverage);
+    }
+
+    #[test]
+    fn profile_parsing() {
+        let mut parser = setup_parser().unwrap();
+        assert!(!parser.args.profile);
+        parser.parse(&["--profile"]);
+        assert!(parser.args.profile);
+    }
+
+    #[test]
+    fn unknown_arg_parsing() {
+        let mut parser = setup_parser().unwrap();
+        let args = &[
+            "-an-argument-that-does-not-exist",
+            "--an-argument-that-does-not-exist",
+        ];
+        parser.parse(args);
+        assert_eq!(parser.unknown_args, args);
+    }
+
+    #[test]
+    fn c_args_parsing() {
+        let mut parser = setup_parser().unwrap();
+        parser.parse(&["-x", "c"]);
+        assert_eq!(parser.args.language, Some("c"));
+        parser.parse(&["-xc++"]);
+        assert_eq!(parser.args.language, Some("c++"));
+    }
+
+    #[test]
+    fn unprefixed_args_parsing() {
+        let mut parser = setup_parser().unwrap();
+        let args = &["foo.c", "bar.o", "baz.a"];
+        parser.parse(args);
+        assert_eq!(parser.args.objects_and_sources, args);
     }
 }
