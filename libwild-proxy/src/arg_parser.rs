@@ -1,3 +1,4 @@
+use anyhow::{Context, Result, bail};
 use std::collections::HashMap;
 
 // Conceptually based on Wild's implementation but written from scratch to fit this use case.
@@ -12,81 +13,157 @@ struct ArgParser<'a> {
     long_flags: HashMap<&'a str, Flag<'a>>,
 }
 
-#[derive(Default, PartialEq)]
-enum Prefix {
-    #[default]
-    Long,
-    LongAndShort,
-    Short,
-}
-
 enum Value<'a, 'b> {
     Single(&'b mut Option<&'a str>),
     Multi(&'b mut Vec<&'a str>),
 }
 
+#[derive(Copy, Clone)]
 struct Arg<'a> {
     args_field: for<'b> fn(&'b mut Args<'a>) -> Value<'a, 'b>,
     separator: Option<char>,
 }
 
+#[derive(Copy, Clone)]
 struct Flag<'a> {
     args_field: for<'b> fn(&'b mut Args<'a>) -> &'b mut bool,
     supports_negation: bool,
 }
 
-impl<'a> ArgParser<'a> {
-    fn declare_flag(
-        &mut self,
-        name: &'a str,
-        args_field: for<'b> fn(&'b mut Args<'a>) -> &'b mut bool,
-        prefix: Prefix,
-        supports_negation: bool,
-    ) {
-        if prefix == Prefix::Long || prefix == Prefix::LongAndShort {
-            self.long_flags.insert(
-                name,
-                Flag {
-                    args_field,
-                    supports_negation,
-                },
-            );
+struct FlagBuilder<'a, 'p> {
+    parser: &'p mut ArgParser<'a>,
+    long_name: Option<&'a str>,
+    short_name: Option<&'a str>,
+    supports_negation: bool,
+    args_field: Option<for<'b> fn(&'b mut Args<'a>) -> &'b mut bool>,
+}
+
+impl<'a, 'p> FlagBuilder<'a, 'p> {
+    #[must_use]
+    fn short(mut self, name: &'a str) -> Self {
+        self.short_name = Some(name);
+        self
+    }
+
+    #[must_use]
+    fn long(mut self, name: &'a str) -> Self {
+        self.long_name = Some(name);
+        self
+    }
+
+    #[must_use]
+    fn with_negation(mut self, supports_negation: bool) -> Self {
+        self.supports_negation = supports_negation;
+        self
+    }
+
+    #[must_use]
+    fn bind(mut self, args_field: for<'b> fn(&'b mut Args<'a>) -> &'b mut bool) -> Self {
+        self.args_field = Some(args_field);
+        self
+    }
+
+    fn build(self) -> Result<()> {
+        let args_field = self
+            .args_field
+            .context("A field must be bound to the flag using bind()")?;
+
+        if self.long_name.is_none() && self.short_name.is_none() {
+            bail!("Flag name is missing");
         }
-        if prefix == Prefix::Short || prefix == Prefix::LongAndShort {
-            self.short_flags.insert(
-                name,
-                Flag {
-                    args_field,
-                    supports_negation,
-                },
-            );
+
+        let flag = Flag {
+            args_field,
+            supports_negation: self.supports_negation,
+        };
+
+        if let Some(long_name) = self.long_name {
+            self.parser.long_flags.insert(long_name, flag);
+        }
+        if let Some(short_name) = self.short_name {
+            self.parser.short_flags.insert(short_name, flag);
+        }
+
+        Ok(())
+    }
+}
+
+struct ArgBuilder<'a, 'p> {
+    parser: &'p mut ArgParser<'a>,
+    long_name: Option<&'a str>,
+    short_name: Option<&'a str>,
+    separator: Option<char>,
+    args_field: Option<for<'b> fn(&'b mut Args<'a>) -> Value<'a, 'b>>,
+}
+
+impl<'a, 'p> ArgBuilder<'a, 'p> {
+    #[must_use]
+    fn short(mut self, name: &'a str) -> Self {
+        self.short_name = Some(name);
+        self
+    }
+
+    #[must_use]
+    fn long(mut self, name: &'a str) -> Self {
+        self.long_name = Some(name);
+        self
+    }
+
+    #[must_use]
+    fn with_separator(mut self, separator: char) -> Self {
+        self.separator = Some(separator);
+        self
+    }
+
+    #[must_use]
+    fn bind(mut self, args_field: for<'b> fn(&'b mut Args<'a>) -> Value<'a, 'b>) -> Self {
+        self.args_field = Some(args_field);
+        self
+    }
+
+    fn build(self) -> Result<()> {
+        let args_field = self
+            .args_field
+            .context("A field must be bound to the argument using bind()")?;
+
+        if self.long_name.is_none() && self.short_name.is_none() {
+            bail!("Argument name is missing");
+        }
+
+        let arg = Arg {
+            args_field,
+            separator: self.separator,
+        };
+
+        if let Some(long_name) = self.long_name {
+            self.parser.long_args.insert(long_name, arg);
+        }
+        if let Some(short_name) = self.short_name {
+            self.parser.short_args.insert(short_name, arg);
+        }
+
+        Ok(())
+    }
+}
+
+impl<'a> ArgParser<'a> {
+    fn declare_flag(&mut self) -> FlagBuilder<'a, '_> {
+        FlagBuilder {
+            parser: self,
+            long_name: None,
+            short_name: None,
+            supports_negation: false,
+            args_field: None,
         }
     }
 
-    fn declare_arg(
-        &mut self,
-        name: &'a str,
-        args_field: for<'b> fn(&'b mut Args<'a>) -> Value<'a, 'b>,
-        prefix: Prefix,
-        separator: Option<char>,
-    ) {
-        if prefix == Prefix::Long || prefix == Prefix::LongAndShort {
-            self.long_args.insert(
-                name,
-                Arg {
-                    args_field,
-                    separator,
-                },
-            );
-        }
-        if prefix == Prefix::Short || prefix == Prefix::LongAndShort {
-            self.short_args.insert(
-                name,
-                Arg {
-                    args_field,
-                    separator,
-                },
-            );
+    fn declare_arg(&mut self) -> ArgBuilder<'a, '_> {
+        ArgBuilder {
+            parser: self,
+            long_name: None,
+            short_name: None,
+            separator: None,
+            args_field: None,
         }
     }
 
@@ -211,57 +288,64 @@ impl Default for Args<'_> {
     }
 }
 
-fn setup_parser<'a>() -> ArgParser<'a> {
+fn setup_parser<'a>() -> Result<ArgParser<'a>> {
     let mut parser = ArgParser::default();
-    parser.declare_flag("pie", |args| &mut args.pie, Prefix::Short, true);
-    parser.declare_flag(
-        "shared",
-        |args| &mut args.shared,
-        Prefix::LongAndShort,
-        false,
-    );
-    parser.declare_flag(
-        "static",
-        |args| &mut args.static_exe,
-        Prefix::LongAndShort,
-        false,
-    );
-    parser.declare_flag(
-        "static-pie",
-        |args| &mut args.static_pie,
-        Prefix::Short,
-        false,
-    );
-
-    parser.declare_flag(
-        "pthread",
-        |args| &mut args.pthread,
-        Prefix::LongAndShort,
-        true,
-    );
-
-    parser.declare_arg(
-        "sysroot",
-        |args| Value::Single(&mut args.sysroot),
-        Prefix::Long,
-        None,
-    );
-
-    parser.declare_arg(
-        "T",
-        |args| Value::Multi(&mut args.scripts),
-        Prefix::Short,
-        None,
-    );
-
-    parser.declare_arg(
-        "Wl",
-        |args| Value::Multi(&mut args.linker_args),
-        Prefix::Short,
-        Some(','),
-    );
 
     parser
+        .declare_flag()
+        .short("pie")
+        .with_negation(true)
+        .bind(|args| &mut args.pie)
+        .build()?;
+
+    parser
+        .declare_flag()
+        .long("shared")
+        .short("shared")
+        .bind(|args| &mut args.shared)
+        .build()?;
+
+    parser
+        .declare_flag()
+        .long("static")
+        .short("static")
+        .bind(|args| &mut args.static_exe)
+        .build()?;
+
+    parser
+        .declare_flag()
+        .short("static-pie")
+        .bind(|args| &mut args.static_pie)
+        .build()?;
+
+    parser
+        .declare_flag()
+        .long("pthread")
+        .short("pthread")
+        .with_negation(true)
+        .bind(|args| &mut args.pthread)
+        .build()?;
+
+    parser
+        .declare_arg()
+        .long("sysroot")
+        .bind(|args| Value::Single(&mut args.sysroot))
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("T")
+        .bind(|args| Value::Multi(&mut args.scripts))
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("Wl")
+        .with_separator(',')
+        .bind(|args| Value::Multi(&mut args.linker_args))
+        .build()?;
+
+    Ok(parser)
 }
 
 #[cfg(test)]
@@ -270,17 +354,17 @@ mod tests {
 
     #[test]
     fn pthread_parsing() {
-        let mut parser = setup_parser();
+        let mut parser = setup_parser().unwrap();
         assert!(!parser.args.pthread);
-        parser.parse_flag("--pthread");
+        parser.parse(&["--pthread"]);
         assert!(parser.args.pthread);
-        parser.parse_flag("-no-pthread");
+        parser.parse(&["-no-pthread"]);
         assert!(!parser.args.pthread);
     }
 
     #[test]
     fn sysroot_parsing() {
-        let mut parser = setup_parser();
+        let mut parser = setup_parser().unwrap();
         assert!(parser.args.sysroot.is_none());
         parser.parse(&["--sysroot=/foo"]);
         assert_eq!(parser.args.sysroot, Some("/foo"));
@@ -290,7 +374,7 @@ mod tests {
 
     #[test]
     fn scripts_parsing() {
-        let mut parser = setup_parser();
+        let mut parser = setup_parser().unwrap();
         assert!(parser.args.scripts.is_empty());
         parser.parse(&["-T", "/foo", "-T/bar"]);
         assert_eq!(parser.args.scripts, vec!["/foo", "/bar"]);
@@ -298,7 +382,7 @@ mod tests {
 
     #[test]
     fn wl_parsing() {
-        let mut parser = setup_parser();
+        let mut parser = setup_parser().unwrap();
         parser.parse(&["-Wl,-z,text", "-Wl=-z,now"]);
         assert_eq!(parser.args.linker_args, vec!["-z", "text", "-z", "now"]);
     }
