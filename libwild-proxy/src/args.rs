@@ -8,8 +8,10 @@ use anyhow::Result;
 // pub type LinkerArgs = Vec<String>;
 // pub type CompilerArgs = Vec<String>;
 //
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default)]
 pub enum Mode {
+    #[default]
+    None,
     CompileOnly,
     LinkOnly,
     CompileAndLink,
@@ -590,7 +592,7 @@ impl Default for Args<'_> {
             out: None,
             output: "a.out",
             output_kind: Default::default(),
-            mode: Mode::CompileAndLink,
+            mode: Default::default(),
             arch: Default::default(),
             objects: vec![],
             sources: vec![],
@@ -621,7 +623,9 @@ impl<'a> Args<'a> {
 
             if args.dont_assemble || args.dont_link {
                 args.mode = Mode::CompileOnly;
-            } else if args.sources.is_empty() {
+            } else if !args.sources.is_empty() {
+                args.mode = Mode::CompileAndLink
+            } else if !args.objects.is_empty() {
                 args.mode = Mode::LinkOnly
             }
         }

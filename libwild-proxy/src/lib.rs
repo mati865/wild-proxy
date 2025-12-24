@@ -14,6 +14,10 @@ mod link;
 mod outputs_cleanup;
 
 pub fn process(args: &[&str], zero_position_arg: &str, binary_name: &str) -> Result<()> {
+    if args.is_empty() {
+        bail!("no input files")
+    }
+
     let zero_position_path = Path::new(zero_position_arg);
     // let args = args
     //     .into_iter()
@@ -47,9 +51,6 @@ pub fn process(args: &[&str], zero_position_arg: &str, binary_name: &str) -> Res
         target = None;
     };
 
-    // let mut arg_parser = args::setup_parser()?;
-    // arg_parser.parse(&args);
-    // let parsed = args::(&args, target)?;
     let parsed_args = args::Args::parse_args(&args, target)?;
 
     match parsed_args.mode {
@@ -69,6 +70,9 @@ pub fn process(args: &[&str], zero_position_arg: &str, binary_name: &str) -> Res
         Mode::CompileAndLink => {
             dbg!(&parsed_args);
             return fallback::fallback();
+        }
+        Mode::None => {
+            bail!("Could not determine what to do with arguments: {args:?}");
         }
     }
 
