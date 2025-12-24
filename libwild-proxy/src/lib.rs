@@ -53,6 +53,10 @@ pub fn process(args: &[&str], zero_position_arg: &str, binary_name: &str) -> Res
 
     let parsed_args = args::Args::parse_args(&args, target)?;
 
+    if parsed_args.help {
+        bail!("Help is not supported yet");
+    }
+
     match parsed_args.mode {
         Mode::CompileOnly => {
             let compiler_path = find_next_executable(&zero_position_path)?;

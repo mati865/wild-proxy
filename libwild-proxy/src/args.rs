@@ -538,7 +538,7 @@ impl OutputKind {
 pub(crate) struct Args<'a> {
     pub(crate) pthread: bool,
     pub(crate) sysroot: Option<&'a str>,
-    scripts: Vec<&'a str>,
+    pub(crate) scripts: Vec<&'a str>,
     pie: bool,
     shared: bool,
     static_exe: bool,
@@ -564,6 +564,7 @@ pub(crate) struct Args<'a> {
     pub(crate) arch: Arch,
     pub(crate) objects: Vec<&'a str>,
     pub(crate) sources: Vec<&'a str>,
+    pub(crate) help: bool,
 }
 
 impl Default for Args<'_> {
@@ -596,6 +597,7 @@ impl Default for Args<'_> {
             arch: Default::default(),
             objects: vec![],
             sources: vec![],
+            help: false,
         }
     }
 }
@@ -717,6 +719,12 @@ fn setup_parser<'a>() -> Result<ArgParser<'a>> {
         .build()?;
 
     parser
+        .declare_flag()
+        .long("help")
+        .bind(|args| &mut args.help)
+        .build()?;
+
+    parser
         .declare_arg()
         .short("o")
         .bind(|args| Value::Single(&mut args.out))
@@ -776,6 +784,13 @@ fn setup_parser<'a>() -> Result<ArgParser<'a>> {
         .declare_arg()
         .short("Xlinker")
         .bind(|args| crate::arg_parser::Value::Multi(&mut args.linker_args))
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("z")
+        .bind(|args| Value::Multi(&mut args.linker_args))
+        .unstripped()
         .build()?;
 
     Ok(parser)
@@ -927,5 +942,12 @@ mod tests {
         assert!(!parser.args.dont_link);
         parser.parse(&["-c"]);
         assert!(parser.args.dont_link);
+    }
+
+    #[test]
+    fn z_parsing() {
+        let mut parser = setup_parser().unwrap();
+        parser.parse(&["-z", "now"]);
+        assert_eq!(parser.args.linker_args, vec!["-z", "now"]);
     }
 }

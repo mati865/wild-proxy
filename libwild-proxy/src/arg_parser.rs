@@ -23,6 +23,7 @@ pub(crate) enum Value<'a, 'b> {
 struct Arg<'a> {
     args_field: for<'b> fn(&'b mut Args<'a>) -> Value<'a, 'b>,
     separator: Option<char>,
+    unstripped: bool,
 }
 
 #[derive(Copy, Clone)]
@@ -95,6 +96,7 @@ pub(crate) struct ArgBuilder<'a, 'p> {
     short_name: Option<&'a str>,
     separator: Option<char>,
     args_field: Option<for<'b> fn(&'b mut Args<'a>) -> Value<'a, 'b>>,
+    unstripped: bool,
 }
 
 impl<'a, 'p> ArgBuilder<'a, 'p> {
@@ -125,6 +127,11 @@ impl<'a, 'p> ArgBuilder<'a, 'p> {
         self
     }
 
+    pub(crate) fn unstripped(mut self) -> Self {
+        self.unstripped = true;
+        self
+    }
+
     pub(crate) fn build(self) -> Result<()> {
         let args_field = self
             .args_field
@@ -137,6 +144,7 @@ impl<'a, 'p> ArgBuilder<'a, 'p> {
         let arg = Arg {
             args_field,
             separator: self.separator,
+            unstripped: self.unstripped,
         };
 
         if let Some(long_name) = self.long_name {
@@ -168,6 +176,7 @@ impl<'a> ArgParser<'a> {
             short_name: None,
             separator: None,
             args_field: None,
+            unstripped: false,
         }
     }
 
@@ -221,12 +230,14 @@ impl<'a> ArgParser<'a> {
             &self.short_args
         };
 
+        let mut next_arg = None;
         let arg_value_pair = if let Some((key, val)) = stripped.split_once('=') {
             arg_map.get(key).map(|arg| (arg, val))
         } else {
             let arg = arg_map.get(stripped);
             if let Some(arg) = arg {
-                Some((arg, args_iter.next().unwrap()))
+                next_arg = args_iter.next();
+                Some((arg, next_arg.unwrap()))
             } else if !is_long {
                 arg_map
                     .keys()
@@ -240,10 +251,24 @@ impl<'a> ArgParser<'a> {
         if let Some((arg, value)) = arg_value_pair {
             match (arg.args_field)(&mut self.args) {
                 Value::Single(single_value) => {
-                    single_value.replace(value);
+                    if arg.unstripped {
+                        if next_arg.is_some() {
+                            panic!("Unstripped argument cannot be created from two arguments");
+                        } else {
+                            single_value.replace(raw_arg);
+                        }
+                    } else {
+                        single_value.replace(value);
+                    }
                 }
                 Value::Multi(multi_value) => {
-                    if let Some(separator) = arg.separator {
+                    if arg.unstripped {
+                        if let Some(next_arg) = next_arg {
+                            multi_value.extend([raw_arg, next_arg]);
+                        } else {
+                            multi_value.push(raw_arg);
+                        }
+                    } else if let Some(separator) = arg.separator {
                         multi_value.extend(value.split(separator).filter(|s| !s.is_empty()))
                     } else {
                         multi_value.push(value);
