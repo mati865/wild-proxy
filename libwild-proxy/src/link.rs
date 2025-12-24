@@ -208,6 +208,11 @@ pub(crate) fn link(args: &Args, cpp_mode: bool) -> anyhow::Result<()> {
     }
     final_linker_args.push(gcc_objects.end_object.display().to_string());
     final_linker_args.push(system_library_paths.crtn.display().to_string());
+    final_linker_args.extend(
+        args.scripts
+            .iter()
+            .flat_map(|script| ["-T".to_string(), script.to_string()]),
+    );
 
     let wild_args = libwild::Args::parse(|| final_linker_args.iter()).expect("todo");
     unsafe { libwild::run_in_subprocess(wild_args) }
