@@ -1,54 +1,54 @@
 use crate::args::Args;
 use anyhow::{Context, Result, bail};
 use std::collections::HashMap;
-
+use std::ops::Not;
 // Conceptually based on Wild's implementation but written from scratch to fit this use case.
 
 #[derive(Default)]
-pub(crate) struct ArgParser<'a> {
-    pub(crate) args: Args<'a>,
-    short_args: HashMap<&'a str, Arg<'a>>,
-    long_args: HashMap<&'a str, Arg<'a>>,
-    short_flags: HashMap<&'a str, Flag<'a>>,
-    long_flags: HashMap<&'a str, Flag<'a>>,
-    pub(crate) unknown_args: Vec<&'a str>,
+pub(crate) struct ArgParser {
+    pub(crate) args: Args,
+    short_args: HashMap<&'static str, Arg>,
+    long_args: HashMap<&'static str, Arg>,
+    short_flags: HashMap<&'static str, Flag>,
+    long_flags: HashMap<&'static str, Flag>,
+    pub(crate) unknown_args: Vec<String>,
 }
 
-pub(crate) enum Value<'a, 'b> {
-    Single(&'b mut Option<&'a str>),
-    Multi(&'b mut Vec<&'a str>),
+pub(crate) enum Value<'b> {
+    Single(&'b mut Option<String>),
+    Multi(&'b mut Vec<String>),
 }
 
 #[derive(Copy, Clone)]
-struct Arg<'a> {
-    args_field: for<'b> fn(&'b mut Args<'a>) -> Value<'a, 'b>,
+struct Arg {
+    args_field: for<'b> fn(&'b mut Args) -> Value<'b>,
     separator: Option<char>,
     unstripped: bool,
 }
 
 #[derive(Copy, Clone)]
-struct Flag<'a> {
-    args_field: for<'b> fn(&'b mut Args<'a>) -> &'b mut bool,
+struct Flag {
+    args_field: for<'b> fn(&'b mut Args) -> &'b mut bool,
     supports_negation: bool,
 }
 
-pub(crate) struct FlagBuilder<'a, 'p> {
-    parser: &'p mut ArgParser<'a>,
-    long_name: Option<&'a str>,
-    short_name: Option<&'a str>,
+pub(crate) struct FlagBuilder<'p> {
+    parser: &'p mut ArgParser,
+    long_name: Option<&'static str>,
+    short_name: Option<&'static str>,
     supports_negation: bool,
-    args_field: Option<for<'b> fn(&'b mut Args<'a>) -> &'b mut bool>,
+    args_field: Option<for<'b> fn(&'b mut Args) -> &'b mut bool>,
 }
 
-impl<'a, 'p> FlagBuilder<'a, 'p> {
+impl<'p> FlagBuilder<'p> {
     #[must_use]
-    pub(crate) fn short(mut self, name: &'a str) -> Self {
+    pub(crate) fn short(mut self, name: &'static str) -> Self {
         self.short_name = Some(name);
         self
     }
 
     #[must_use]
-    pub(crate) fn long(mut self, name: &'a str) -> Self {
+    pub(crate) fn long(mut self, name: &'static str) -> Self {
         self.long_name = Some(name);
         self
     }
@@ -60,7 +60,7 @@ impl<'a, 'p> FlagBuilder<'a, 'p> {
     }
 
     #[must_use]
-    pub(crate) fn bind(mut self, args_field: for<'b> fn(&'b mut Args<'a>) -> &'b mut bool) -> Self {
+    pub(crate) fn bind(mut self, args_field: for<'b> fn(&'b mut Args) -> &'b mut bool) -> Self {
         self.args_field = Some(args_field);
         self
     }
@@ -90,24 +90,24 @@ impl<'a, 'p> FlagBuilder<'a, 'p> {
     }
 }
 
-pub(crate) struct ArgBuilder<'a, 'p> {
-    parser: &'p mut ArgParser<'a>,
-    long_name: Option<&'a str>,
-    short_name: Option<&'a str>,
+pub(crate) struct ArgBuilder<'p> {
+    parser: &'p mut ArgParser,
+    long_name: Option<&'static str>,
+    short_name: Option<&'static str>,
     separator: Option<char>,
-    args_field: Option<for<'b> fn(&'b mut Args<'a>) -> Value<'a, 'b>>,
+    args_field: Option<for<'b> fn(&'b mut Args) -> Value<'b>>,
     unstripped: bool,
 }
 
-impl<'a, 'p> ArgBuilder<'a, 'p> {
+impl<'p> ArgBuilder<'p> {
     #[must_use]
-    pub(crate) fn short(mut self, name: &'a str) -> Self {
+    pub(crate) fn short(mut self, name: &'static str) -> Self {
         self.short_name = Some(name);
         self
     }
 
     #[must_use]
-    pub(crate) fn long(mut self, name: &'a str) -> Self {
+    pub(crate) fn long(mut self, name: &'static str) -> Self {
         self.long_name = Some(name);
         self
     }
@@ -119,10 +119,7 @@ impl<'a, 'p> ArgBuilder<'a, 'p> {
     }
 
     #[must_use]
-    pub(crate) fn bind(
-        mut self,
-        args_field: for<'b> fn(&'b mut Args<'a>) -> Value<'a, 'b>,
-    ) -> Self {
+    pub(crate) fn bind(mut self, args_field: for<'b> fn(&'b mut Args) -> Value<'b>) -> Self {
         self.args_field = Some(args_field);
         self
     }
@@ -158,8 +155,8 @@ impl<'a, 'p> ArgBuilder<'a, 'p> {
     }
 }
 
-impl<'a> ArgParser<'a> {
-    pub(crate) fn declare_flag(&mut self) -> FlagBuilder<'a, '_> {
+impl ArgParser {
+    pub(crate) fn declare_flag(&mut self) -> FlagBuilder<'_> {
         FlagBuilder {
             parser: self,
             long_name: None,
@@ -169,7 +166,7 @@ impl<'a> ArgParser<'a> {
         }
     }
 
-    pub(crate) fn declare_arg(&mut self) -> ArgBuilder<'a, '_> {
+    pub(crate) fn declare_arg(&mut self) -> ArgBuilder<'_> {
         ArgBuilder {
             parser: self,
             long_name: None,
@@ -211,9 +208,9 @@ impl<'a> ArgParser<'a> {
         false
     }
 
-    fn parse_arg(
+    fn parse_arg<'a>(
         &mut self,
-        raw_arg: &'a str,
+        raw_arg: &str,
         args_iter: &mut impl Iterator<Item = &'a str>,
     ) -> bool {
         let (stripped, is_long) = if let Some(s) = raw_arg.strip_prefix("--") {
@@ -241,8 +238,8 @@ impl<'a> ArgParser<'a> {
             } else if !is_long {
                 arg_map
                     .keys()
-                    .find(|&&key| stripped.starts_with(key))
-                    .map(|&key| (&arg_map[key], stripped.strip_prefix(key).unwrap()))
+                    .find(|&key| stripped.starts_with(key))
+                    .map(|key| (&arg_map[key], stripped.strip_prefix(key).unwrap()))
             } else {
                 return false;
             }
@@ -255,23 +252,27 @@ impl<'a> ArgParser<'a> {
                         if next_arg.is_some() {
                             panic!("Unstripped argument cannot be created from two arguments");
                         } else {
-                            single_value.replace(raw_arg);
+                            single_value.replace(raw_arg.to_string());
                         }
                     } else {
-                        single_value.replace(value);
+                        single_value.replace(value.to_string());
                     }
                 }
                 Value::Multi(multi_value) => {
                     if arg.unstripped {
                         if let Some(next_arg) = next_arg {
-                            multi_value.extend([raw_arg, next_arg]);
+                            multi_value.extend([raw_arg.to_string(), next_arg.to_string()]);
                         } else {
-                            multi_value.push(raw_arg);
+                            multi_value.push(raw_arg.to_string());
                         }
                     } else if let Some(separator) = arg.separator {
-                        multi_value.extend(value.split(separator).filter(|s| !s.is_empty()))
+                        multi_value.extend(
+                            value
+                                .split(separator)
+                                .filter_map(|s| s.is_empty().not().then(|| s.to_string())),
+                        )
                     } else {
-                        multi_value.push(value);
+                        multi_value.push(value.to_string());
                     }
                 }
             }
@@ -281,15 +282,15 @@ impl<'a> ArgParser<'a> {
         false
     }
 
-    fn handle_unknown_arg(&mut self, arg: &'a str) -> bool {
+    fn handle_unknown_arg(&mut self, arg: &str) -> bool {
         if arg.starts_with('-') {
-            self.unknown_args.push(arg);
+            self.unknown_args.push(arg.to_string());
             return true;
         }
         false
     }
 
-    pub(crate) fn parse(&mut self, args: &[&'a str]) {
+    pub(crate) fn parse(&mut self, args: &[&str]) {
         let mut args_iter = args.into_iter().copied();
         while let Some(arg) = args_iter.next() {
             if !self.parse_flag(arg)
@@ -301,9 +302,9 @@ impl<'a> ArgParser<'a> {
                     .iter()
                     .any(|ext| arg.ends_with(ext))
                 {
-                    self.args.sources.push(arg);
+                    self.args.sources.push(arg.to_string());
                 } else {
-                    self.args.objects.push(arg);
+                    self.args.objects.push(arg.to_string());
                 }
             }
         }

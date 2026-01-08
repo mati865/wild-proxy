@@ -535,39 +535,39 @@ impl OutputKind {
 //     }
 // }
 #[derive(Debug)]
-pub(crate) struct Args<'a> {
+pub(crate) struct Args {
     pub(crate) pthread: bool,
-    pub(crate) sysroot: Option<&'a str>,
-    pub(crate) scripts: Vec<&'a str>,
+    pub(crate) sysroot: Option<String>,
+    pub(crate) scripts: Vec<String>,
     pie: bool,
     shared: bool,
     static_exe: bool,
     static_pie: bool,
-    pub(crate) linker_args: Vec<&'a str>,
-    pub(crate) additional_libs: Vec<&'a str>,
-    additional_search_paths: Vec<&'a str>,
-    compiler_b_args: Vec<&'a str>,
+    pub(crate) linker_args: Vec<String>,
+    pub(crate) additional_libs: Vec<String>,
+    pub(crate) additional_search_paths: Vec<String>,
+    compiler_b_args: Vec<String>,
     pub(crate) nodefaultlibs: bool,
     pub(crate) nostartfiles: bool,
     pub(crate) nostdlib: bool,
     pub(crate) coverage: bool,
     pub(crate) profile: bool,
-    target: Option<&'a str>,
-    language: Option<&'a str>,
+    target: Option<String>,
+    language: Option<String>,
     dont_assemble: bool,
     dont_link: bool,
     // TODO: Make it not an option
-    out: Option<&'a str>,
-    pub(crate) output: &'a str,
+    out: Option<String>,
+    pub(crate) output: String,
     pub(crate) output_kind: OutputKind,
     pub(crate) mode: Mode,
     pub(crate) arch: Arch,
-    pub(crate) objects: Vec<&'a str>,
-    pub(crate) sources: Vec<&'a str>,
+    pub(crate) objects: Vec<String>,
+    pub(crate) sources: Vec<String>,
     pub(crate) help: bool,
 }
 
-impl Default for Args<'_> {
+impl Default for Args {
     fn default() -> Self {
         Self {
             pthread: false,
@@ -591,7 +591,7 @@ impl Default for Args<'_> {
             dont_assemble: false,
             dont_link: false,
             out: None,
-            output: "a.out",
+            output: "a.out".to_string(),
             output_kind: Default::default(),
             mode: Default::default(),
             arch: Default::default(),
@@ -602,8 +602,8 @@ impl Default for Args<'_> {
     }
 }
 
-impl<'a> Args<'a> {
-    pub(crate) fn parse_args(args: &'a [&str], target: Option<Arch>) -> Result<Self> {
+impl Args {
+    pub(crate) fn parse_args(args: &[&str], target: Option<Arch>) -> Result<Self> {
         let mut parser = setup_parser()?;
         parser.parse(args);
         let mut args = parser.args;
@@ -613,13 +613,13 @@ impl<'a> Args<'a> {
         {
             args.output_kind = OutputKind::from_args(&args);
 
-            if let Some(target) = args.target {
+            if let Some(target) = &args.target {
                 args.arch = crate::arch::target_arch(target)?;
             } else if let Some(target) = target {
                 args.arch = target;
             }
 
-            if let Some(out) = args.out {
+            if let Some(out) = args.out.take() {
                 args.output = out;
             }
 
@@ -636,7 +636,7 @@ impl<'a> Args<'a> {
     }
 }
 
-fn setup_parser<'a>() -> Result<ArgParser<'a>> {
+fn setup_parser() -> Result<ArgParser> {
     let mut parser = ArgParser::default();
 
     parser
@@ -815,9 +815,9 @@ mod tests {
         let mut parser = setup_parser().unwrap();
         assert!(parser.args.sysroot.is_none());
         parser.parse(&["--sysroot=/foo"]);
-        assert_eq!(parser.args.sysroot, Some("/foo"));
+        assert_eq!(parser.args.sysroot.as_deref(), Some("/foo"));
         parser.parse(&["--sysroot", "/bar"]);
-        assert_eq!(parser.args.sysroot, Some("/bar"));
+        assert_eq!(parser.args.sysroot.as_deref(), Some("/bar"));
     }
 
     #[test]
@@ -868,9 +868,9 @@ mod tests {
     fn target_parsing() {
         let mut parser = setup_parser().unwrap();
         parser.parse(&["--target=x86_64-linux-gnu"]);
-        assert_eq!(parser.args.target, Some("x86_64-linux-gnu"));
+        assert_eq!(parser.args.target.as_deref(), Some("x86_64-linux-gnu"));
         parser.parse(&["-target", "aarch64-linux-gnu"]);
-        assert_eq!(parser.args.target, Some("aarch64-linux-gnu"))
+        assert_eq!(parser.args.target.as_deref(), Some("aarch64-linux-gnu"))
     }
 
     #[test]
@@ -905,9 +905,9 @@ mod tests {
     fn c_args_parsing() {
         let mut parser = setup_parser().unwrap();
         parser.parse(&["-x", "c"]);
-        assert_eq!(parser.args.language, Some("c"));
+        assert_eq!(parser.args.language.as_deref(), Some("c"));
         parser.parse(&["-xc++"]);
-        assert_eq!(parser.args.language, Some("c++"));
+        assert_eq!(parser.args.language.as_deref(), Some("c++"));
     }
 
     #[test]
@@ -923,9 +923,9 @@ mod tests {
     fn out_parsing() {
         let mut parser = setup_parser().unwrap();
         parser.parse(&["-o", "foo"]);
-        assert_eq!(parser.args.out, Some("foo"));
+        assert_eq!(parser.args.out.as_deref(), Some("foo"));
         parser.parse(&["-o/tmp/bar"]);
-        assert_eq!(parser.args.out, Some("/tmp/bar"));
+        assert_eq!(parser.args.out.as_deref(), Some("/tmp/bar"));
     }
 
     #[test]
