@@ -149,15 +149,15 @@ fn gcc_objects(args: &Args) -> Result<GccObjects> {
 }
 
 pub(crate) fn link(args: &Args, cpp_mode: bool) -> Result<()> {
-    let final_linker_args = build_link_args(&args, cpp_mode)?;
+    let linker_args = build_link_args(&args, cpp_mode)?;
 
-    let wild_args = libwild::Args::parse(|| final_linker_args.iter()).expect("todo");
+    let wild_args = libwild::Args::parse(|| linker_args.iter()).expect("todo");
     unsafe { libwild::run_in_subprocess(wild_args) }
 }
 
-fn build_link_args(args: &Args, cpp_mode: bool) -> Result<Vec<String>> {
-    let system_library_paths = crate::link::system_library_paths(&args)?;
-    let gcc_objects = crate::link::gcc_objects(&args)?;
+pub(crate) fn build_link_args(args: &Args, cpp_mode: bool) -> Result<Vec<String>> {
+    let system_library_paths = system_library_paths(&args)?;
+    let gcc_objects = gcc_objects(&args)?;
     // Based on Clang
     let builtin_args1 = [
         "--hash-style=gnu",
@@ -225,7 +225,5 @@ fn build_link_args(args: &Args, cpp_mode: bool) -> Result<Vec<String>> {
             .iter()
             .flat_map(|script| ["-T".to_string(), script.to_string()]),
     );
-
-    let wild_args = libwild::Args::parse(|| final_linker_args.iter()).expect("todo");
-    unsafe { libwild::run_in_subprocess(wild_args) }
+    Ok(final_linker_args)
 }
