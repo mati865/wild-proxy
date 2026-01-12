@@ -184,6 +184,11 @@ pub(crate) fn link(args: &Args, cpp_mode: bool) -> anyhow::Result<()> {
     for path in system_library_paths.library_paths {
         final_linker_args.push(format!("-L{}", path));
     }
+    final_linker_args.extend(
+        args.additional_search_paths
+            .iter()
+            .map(|path| format!("-L{}", path)),
+    );
     // TODO: Do it better, probably move to parsing part
     final_linker_args.extend(args.objects.iter().map(ToString::to_string));
     final_linker_args.extend(args.additional_libs.iter().map(|lib| format! {"-l{lib}"}));
