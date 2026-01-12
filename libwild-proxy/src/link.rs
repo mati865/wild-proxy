@@ -1,5 +1,5 @@
 use crate::args::{Args, OutputKind};
-use anyhow::bail;
+use anyhow::{Result, bail};
 use std::{
     collections::BTreeMap,
     fs::read_dir,
@@ -13,7 +13,7 @@ struct SystemLibraryPaths {
     library_paths: Vec<String>,
 }
 
-fn system_library_paths(args: &Args) -> anyhow::Result<SystemLibraryPaths> {
+fn system_library_paths(args: &Args) -> Result<SystemLibraryPaths> {
     // 535 │ glibc /usr/lib/Mcrt1.o
     // 536 │ glibc /usr/lib/Scrt1.o
     // 539 │ glibc /usr/lib/crt1.o
@@ -84,7 +84,7 @@ struct GccObjects {
     lib_dir: PathBuf,
 }
 
-fn gcc_objects(args: &Args) -> anyhow::Result<GccObjects> {
+fn gcc_objects(args: &Args) -> Result<GccObjects> {
     // 952 │ gcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtbegin.o
     // 953 │ gcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtbeginS.o
     // 954 │ gcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtbeginT.o
@@ -148,9 +148,16 @@ fn gcc_objects(args: &Args) -> anyhow::Result<GccObjects> {
     })
 }
 
-pub(crate) fn link(args: &Args, cpp_mode: bool) -> anyhow::Result<()> {
-    let system_library_paths = system_library_paths(&args)?;
-    let gcc_objects = gcc_objects(&args)?;
+pub(crate) fn link(args: &Args, cpp_mode: bool) -> Result<()> {
+    let final_linker_args = build_link_args(&args, cpp_mode)?;
+
+    let wild_args = libwild::Args::parse(|| final_linker_args.iter()).expect("todo");
+    unsafe { libwild::run_in_subprocess(wild_args) }
+}
+
+fn build_link_args(args: &Args, cpp_mode: bool) -> Result<Vec<String>> {
+    let system_library_paths = crate::link::system_library_paths(&args)?;
+    let gcc_objects = crate::link::gcc_objects(&args)?;
     // Based on Clang
     let builtin_args1 = [
         "--hash-style=gnu",
@@ -181,7 +188,7 @@ pub(crate) fn link(args: &Args, cpp_mode: bool) -> anyhow::Result<()> {
     final_linker_args.push(system_library_paths.crti.display().to_string());
     final_linker_args.push(gcc_objects.begin_object.display().to_string());
     final_linker_args.push(format!("-L{}", gcc_objects.lib_dir.display()));
-    for path in system_library_paths.library_paths {
+    for path in &system_library_paths.library_paths {
         final_linker_args.push(format!("-L{}", path));
     }
     final_linker_args.extend(
