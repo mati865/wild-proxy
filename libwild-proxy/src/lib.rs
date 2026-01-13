@@ -123,7 +123,6 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     #[test]
-    #[ignore]
     fn rustc_link() {
         let args = vec![
             "-m64",

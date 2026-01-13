@@ -199,10 +199,7 @@ pub(crate) fn build_link_args(args: &Args, cpp_mode: bool) -> Result<Vec<String>
     for path in &system_library_paths.library_paths {
         final_linker_args.push(format!("-L{}", path));
     }
-    // TODO: Do it better, probably move to parsing part
-    final_linker_args.extend(args.objects.iter().map(ToString::to_string));
-    final_linker_args.extend(args.additional_libs.iter().map(|lib| format! {"-l{lib}"}));
-    final_linker_args.extend(args.linker_args.iter().map(ToString::to_string));
+    final_linker_args.extend(args.raw_args.clone().into_iter());
     if !args.nodefaultlibs {
         if cpp_mode {
             final_linker_args.extend(["-lstdc++".to_string(), "-lm".to_string()]);

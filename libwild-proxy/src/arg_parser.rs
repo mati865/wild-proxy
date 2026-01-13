@@ -23,7 +23,7 @@ pub(crate) enum Value<'b> {
 struct Arg {
     args_field: for<'b> fn(&'b mut Args) -> Value<'b>,
     separator: Option<char>,
-    unstripped: bool,
+    raw: bool,
 }
 
 #[derive(Copy, Clone)]
@@ -124,7 +124,7 @@ impl<'p> ArgBuilder<'p> {
         self
     }
 
-    pub(crate) fn unstripped(mut self) -> Self {
+    pub(crate) fn raw(mut self) -> Self {
         self.unstripped = true;
         self
     }
@@ -141,7 +141,7 @@ impl<'p> ArgBuilder<'p> {
         let arg = Arg {
             args_field,
             separator: self.separator,
-            unstripped: self.unstripped,
+            raw: self.unstripped,
         };
 
         if let Some(long_name) = self.long_name {
@@ -248,7 +248,7 @@ impl ArgParser {
         if let Some((arg, value)) = arg_value_pair {
             match (arg.args_field)(&mut self.args) {
                 Value::Single(single_value) => {
-                    if arg.unstripped {
+                    if arg.raw {
                         if next_arg.is_some() {
                             panic!("Unstripped argument cannot be created from two arguments");
                         } else {
@@ -259,7 +259,7 @@ impl ArgParser {
                     }
                 }
                 Value::Multi(multi_value) => {
-                    if arg.unstripped {
+                    if arg.raw {
                         if let Some(next_arg) = next_arg {
                             multi_value.extend([raw_arg.to_string(), next_arg.to_string()]);
                         } else {
@@ -304,7 +304,8 @@ impl ArgParser {
                 {
                     self.args.sources.push(arg.to_string());
                 } else {
-                    self.args.objects.push(arg.to_string());
+                    self.args.input_objects_found = true;
+                    self.args.raw_args.push(arg.to_string());
                 }
             }
         }

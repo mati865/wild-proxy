@@ -543,8 +543,8 @@ pub(crate) struct Args {
     shared: bool,
     static_exe: bool,
     static_pie: bool,
-    pub(crate) linker_args: Vec<String>,
-    pub(crate) additional_libs: Vec<String>,
+    pub(crate) input_objects_found: bool,
+    pub(crate) raw_args: Vec<String>,
     pub(crate) additional_search_paths: Vec<String>,
     compiler_b_args: Vec<String>,
     pub(crate) nodefaultlibs: bool,
@@ -562,7 +562,6 @@ pub(crate) struct Args {
     pub(crate) output_kind: OutputKind,
     pub(crate) mode: Mode,
     pub(crate) arch: Arch,
-    pub(crate) objects: Vec<String>,
     pub(crate) sources: Vec<String>,
     pub(crate) help: bool,
 }
@@ -577,9 +576,9 @@ impl Default for Args {
             shared: false,
             static_exe: false,
             static_pie: false,
-            linker_args: vec![],
-            additional_libs: vec![],
-            additional_search_paths: vec![],
+            input_objects_found: false,
+            additional_search_paths: Vec::new(),
+            raw_args: vec![],
             compiler_b_args: vec![],
             nodefaultlibs: false,
             nostartfiles: false,
@@ -595,7 +594,6 @@ impl Default for Args {
             output_kind: Default::default(),
             mode: Default::default(),
             arch: Default::default(),
-            objects: vec![],
             sources: vec![],
             help: false,
         }
@@ -627,7 +625,7 @@ impl Args {
                 args.mode = Mode::CompileOnly;
             } else if !args.sources.is_empty() {
                 args.mode = Mode::CompileAndLink
-            } else if !args.objects.is_empty() {
+            } else if args.input_objects_found {
                 args.mode = Mode::LinkOnly
             }
         }
@@ -733,64 +731,65 @@ fn setup_parser() -> Result<ArgParser> {
     parser
         .declare_arg()
         .short("x")
-        .bind(|args| crate::arg_parser::Value::Single(&mut args.language))
+        .bind(|args| Value::Single(&mut args.language))
         .build()?;
 
     parser
         .declare_arg()
         .short("B")
-        .bind(|args| crate::arg_parser::Value::Multi(&mut args.compiler_b_args))
+        .bind(|args| Value::Multi(&mut args.compiler_b_args))
         .build()?;
 
     parser
         .declare_arg()
         .short("l")
-        .bind(|args| crate::arg_parser::Value::Multi(&mut args.additional_libs))
+        .bind(|args| Value::Multi(&mut args.raw_args))
+        .raw()
         .build()?;
 
     parser
         .declare_arg()
         .short("L")
-        .bind(|args| crate::arg_parser::Value::Multi(&mut args.additional_search_paths))
+        .bind(|args| Value::Multi(&mut args.additional_search_paths))
         .build()?;
 
     parser
         .declare_arg()
         .short("target")
         .long("target")
-        .bind(|args| crate::arg_parser::Value::Single(&mut args.target))
+        .bind(|args| Value::Single(&mut args.target))
         .build()?;
 
     parser
         .declare_arg()
         .long("sysroot")
-        .bind(|args| crate::arg_parser::Value::Single(&mut args.sysroot))
+        .bind(|args| Value::Single(&mut args.sysroot))
         .build()?;
 
     parser
         .declare_arg()
         .short("T")
-        .bind(|args| crate::arg_parser::Value::Multi(&mut args.scripts))
+        .bind(|args| Value::Multi(&mut args.scripts))
         .build()?;
 
     parser
         .declare_arg()
         .short("Wl")
         .with_separator(',')
-        .bind(|args| crate::arg_parser::Value::Multi(&mut args.linker_args))
+        .bind(|args| Value::Multi(&mut args.raw_args))
         .build()?;
 
     parser
         .declare_arg()
         .short("Xlinker")
-        .bind(|args| crate::arg_parser::Value::Multi(&mut args.linker_args))
+        .bind(|args| Value::Multi(&mut args.raw_args))
         .build()?;
 
     parser
         .declare_arg()
         .short("z")
-        .bind(|args| Value::Multi(&mut args.linker_args))
-        .unstripped()
+        .bind(|args| Value::Multi(&mut args.raw_args))
+        .raw()
         .build()?;
 
     Ok(parser)
@@ -832,10 +831,10 @@ mod tests {
     fn wl_parsing() {
         let mut parser = setup_parser().unwrap();
         parser.parse(&["-Wl,-z,text", "-Wl=-z,now"]);
-        assert_eq!(parser.args.linker_args, vec!["-z", "text", "-z", "now"]);
+        assert_eq!(parser.args.raw_args, vec!["-z", "text", "-z", "now"]);
         parser.parse(&["-Xlinker", "-z,relro"]);
         assert_eq!(
-            parser.args.linker_args,
+            parser.args.raw_args,
             vec!["-z", "text", "-z", "now", "-z,relro"]
         );
     }
@@ -851,7 +850,7 @@ mod tests {
     fn additional_libs_parsing() {
         let mut parser = setup_parser().unwrap();
         parser.parse(&["-lfoo", "-lbar"]);
-        assert_eq!(parser.args.additional_libs, vec!["foo", "bar"]);
+        assert_eq!(parser.args.raw_args, vec!["-lfoo", "-lbar"]);
     }
 
     #[test]
@@ -913,10 +912,11 @@ mod tests {
     #[test]
     fn unprefixed_args_parsing() {
         let mut parser = setup_parser().unwrap();
-        let args = &["foo.c", "bar.o", "baz.a"];
+        let args = &["foo.c", "bar.o", "baz.a", "qux"];
         parser.parse(args);
         assert_eq!(parser.args.sources, args[..1]);
-        assert_eq!(parser.args.objects, args[1..]);
+        assert_eq!(parser.args.raw_args, args[1..]);
+        assert!(parser.args.input_objects_found);
     }
 
     #[test]
@@ -948,6 +948,6 @@ mod tests {
     fn z_parsing() {
         let mut parser = setup_parser().unwrap();
         parser.parse(&["-z", "now"]);
-        assert_eq!(parser.args.linker_args, vec!["-z", "now"]);
+        assert_eq!(parser.args.raw_args, vec!["-z", "now"]);
     }
 }
