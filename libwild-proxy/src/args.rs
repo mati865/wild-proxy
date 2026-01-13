@@ -830,13 +830,22 @@ mod tests {
     #[test]
     fn wl_parsing() {
         let mut parser = setup_parser().unwrap();
-        parser.parse(&["-Wl,-z,text", "-Wl=-z,now"]);
-        assert_eq!(parser.args.raw_args, vec!["-z", "text", "-z", "now"]);
+        parser.parse(&[
+            "-Wl,-z,text",
+            "-Wl=-z,now",
+            "-Wl,-soname=librustc_driver-23d51a7ae6381501.so",
+        ]);
+        let mut expected = vec![
+            "-z",
+            "text",
+            "-z",
+            "now",
+            "-soname=librustc_driver-23d51a7ae6381501.so",
+        ];
+        assert_eq!(parser.args.raw_args, expected);
+        expected.push("-z,relro");
         parser.parse(&["-Xlinker", "-z,relro"]);
-        assert_eq!(
-            parser.args.raw_args,
-            vec!["-z", "text", "-z", "now", "-z,relro"]
-        );
+        assert_eq!(parser.args.raw_args, expected);
     }
 
     #[test]

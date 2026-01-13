@@ -228,7 +228,9 @@ impl ArgParser {
         };
 
         let mut next_arg = None;
-        let arg_value_pair = if let Some((key, val)) = stripped.split_once('=') {
+        let arg_value_pair = if let Some(pos) = stripped.find(&[',', '=']) {
+            let (key, rest) = stripped.split_at(pos);
+            let val = &rest[1..];
             arg_map.get(key).map(|arg| (arg, val))
         } else {
             let arg = arg_map.get(stripped);
