@@ -122,6 +122,7 @@ mod tests {
     use crate::{args::Args, link::build_link_args};
     use pretty_assertions::assert_eq;
 
+    // TODO: Mock GCC dir
     #[test]
     fn rustc_link() {
         let args = vec![
@@ -187,8 +188,8 @@ mod tests {
                 "/lib64/ld-linux-x86-64.so.2",
                 "-o",
                 "/build/rust/build/x86_64-unknown-linux-gnu/stage1-rustc/x86_64-unknown-linux-gnu/release/deps/rustc_main-d019688b2c42e12c",
-                "//lib64/Scrt1.o",
-                "//lib64/crti.o",
+                "/lib64/Scrt1.o",
+                "/lib64/crti.o",
                 "/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/crtbeginS.o",
                 "-L/tmp/rustc9n9gBH/raw-dylibs",
                 "-L/build/rust/build/x86_64-unknown-linux-gnu/stage1-rustc/x86_64-unknown-linux-gnu/release/build/psm-9ec73701addafb56/out",
@@ -197,10 +198,10 @@ mod tests {
                 "-L/build/rust/build/x86_64-unknown-linux-gnu/ci-llvm/lib",
                 "-L/build/rust/build/x86_64-unknown-linux-gnu/stage0-sysroot/lib/rustlib/x86_64-unknown-linux-gnu/lib",
                 "-L/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1",
-                "-L//lib64",
-                "-L//usr/lib64",
-                "-L//lib",
-                "-L//usr/lib",
+                "-L/lib64",
+                "-L/usr/lib64",
+                "-L/lib",
+                "-L/usr/lib",
                 "/tmp/rustc9n9gBH/symbols.o",
                 "/build/rust/build/x86_64-unknown-linux-gnu/stage1-rustc/x86_64-unknown-linux-gnu/release/deps/rustc_main-d019688b2c42e12c.rustc_main.e3546e6658d3c99d-cgu.0.rcgu.o",
                 "--as-needed",
@@ -234,7 +235,7 @@ mod tests {
                 "-rpath",
                 "/../lib",
                 "/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/crtendS.o",
-                "//lib64/crtn.o"
+                "/lib64/crtn.o"
             ]
         )
     }
@@ -556,7 +557,7 @@ mod tests {
                 "-shared",
                 "-o",
                 "/build/rust/build/x86_64-unknown-linux-gnu/stage1-rustc/x86_64-unknown-linux-gnu/release/deps/librustc_driver-23d51a7ae6381501.so",
-                "//lib64/crti.o",
+                "/lib64/crti.o",
                 "/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/crtbeginS.o",
                 "-L/tmp/rustcKk4Xlj/raw-dylibs",
                 "-L/build/rust/build/x86_64-unknown-linux-gnu/stage1-rustc/x86_64-unknown-linux-gnu/release/build/psm-a13502f6a7202f84/out",
@@ -565,10 +566,10 @@ mod tests {
                 "-L/build/rust/build/x86_64-unknown-linux-gnu/ci-llvm/lib",
                 "-L/build/rust/build/x86_64-unknown-linux-gnu/stage0-sysroot/lib/rustlib/x86_64-unknown-linux-gnu/lib",
                 "-L/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1",
-                "-L//lib64",
-                "-L//usr/lib64",
-                "-L//lib",
-                "-L//usr/lib",
+                "-L/lib64",
+                "-L/usr/lib64",
+                "-L/lib",
+                "-L/usr/lib",
                 "--version-script=/tmp/rustcKk4Xlj/list",
                 "--no-undefined-version",
                 "/tmp/rustcKk4Xlj/symbols.o",
@@ -856,7 +857,7 @@ mod tests {
                 "-rpath",
                 "/../lib",
                 "/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/crtendS.o",
-                "//lib64/crtn.o",
+                "/lib64/crtn.o",
             ]
         )
     }

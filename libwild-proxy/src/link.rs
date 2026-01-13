@@ -40,11 +40,11 @@ fn system_library_paths(args: &Args) -> Result<SystemLibraryPaths> {
     let crti_name = "crti.o";
     let crtn_name = "crtn.o";
 
-    // TODO: figure out how to handle it
+    // TODO: handle --target (also combine with --sysroot)
     let base = if let Some(path) = &args.sysroot {
-        path
+        path.trim_end_matches('/')
     } else {
-        "/"
+        ""
     };
     let triple_path = format!("{base}/usr/lib/{}-linux-gnu", args.arch);
     let mut potential_paths = Vec::new();
@@ -179,7 +179,12 @@ pub(crate) fn build_link_args(args: &Args, cpp_mode: bool) -> Result<Vec<String>
         OutputKind::SharedObject => &["-shared"],
     };
 
-    let mut final_linker_args = Vec::from_iter(builtin_args1.iter().map(ToString::to_string));
+    let mut final_linker_args = if let Some(sysroot) = &args.sysroot {
+        vec![format!("--sysroot={sysroot}")]
+    } else {
+        vec![]
+    };
+    final_linker_args.extend(builtin_args1.iter().map(ToString::to_string));
     final_linker_args.extend(output_kind_args.iter().map(ToString::to_string));
     final_linker_args.extend(["-o".to_string(), args.output.to_string()]);
 
