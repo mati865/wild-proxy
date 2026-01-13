@@ -564,6 +564,7 @@ pub(crate) struct Args {
     pub(crate) arch: Arch,
     pub(crate) sources: Vec<String>,
     pub(crate) help: bool,
+    pub(crate) hash_hash_hash: bool,
 }
 
 impl Default for Args {
@@ -596,6 +597,7 @@ impl Default for Args {
             arch: Default::default(),
             sources: vec![],
             help: false,
+            hash_hash_hash: false,
         }
     }
 }
@@ -720,6 +722,12 @@ fn setup_parser() -> Result<ArgParser> {
         .declare_flag()
         .long("help")
         .bind(|args| &mut args.help)
+        .build()?;
+
+    parser
+        .declare_flag()
+        .short("###")
+        .bind(|args| &mut args.hash_hash_hash)
         .build()?;
 
     parser

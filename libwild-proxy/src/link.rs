@@ -154,8 +154,14 @@ fn gcc_objects(args: &Args) -> Result<GccObjects> {
 pub(crate) fn link(args: &Args, cpp_mode: bool) -> Result<()> {
     let linker_args = build_link_args(&args, cpp_mode)?;
 
-    let wild_args = libwild::Args::parse(|| linker_args.iter()).expect("todo");
-    unsafe { libwild::run_in_subprocess(wild_args) }
+    if args.hash_hash_hash {
+        eprintln!(" wild {}", linker_args.join(" "));
+    } else {
+        let wild_args = libwild::Args::parse(|| linker_args.iter()).expect("todo");
+        unsafe { libwild::run_in_subprocess(wild_args) }
+    }
+
+    Ok(())
 }
 
 pub(crate) fn build_link_args(args: &Args, cpp_mode: bool) -> Result<Vec<String>> {

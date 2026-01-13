@@ -57,6 +57,14 @@ pub fn process(args: &[&str], zero_position_arg: &str, binary_name: &str) -> Res
         bail!("Help is not supported yet");
     }
 
+    if parsed_args.hash_hash_hash {
+        eprintln!(
+            "{} version {}",
+            env!("CARGO_PKG_NAME"),
+            env!("CARGO_PKG_VERSION")
+        );
+    }
+
     match parsed_args.mode {
         Mode::CompileOnly => {
             let compiler_path = find_next_executable(&zero_position_path)?;
