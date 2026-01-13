@@ -100,7 +100,10 @@ fn gcc_objects(args: &Args) -> Result<GccObjects> {
         OutputKind::Dynamic => "crtbegin.o",
         OutputKind::Static => "crtbeginT.o",
     };
-    let end_object_name = "crtend.o";
+    let end_object_name = match args.output_kind {
+        OutputKind::DynamicPie | OutputKind::StaticPie | OutputKind::SharedObject => "crtendS.o",
+        _ => "crtend.o",
+    };
 
     // TODO: Figure out the logic
     // TODO: handle other distros like RHEL and *SUSE
