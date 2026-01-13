@@ -792,6 +792,13 @@ fn setup_parser() -> Result<ArgParser> {
         .raw()
         .build()?;
 
+    parser
+        .declare_arg()
+        .short("u")
+        .bind(|args| Value::Multi(&mut args.raw_args))
+        .raw()
+        .build()?;
+
     Ok(parser)
 }
 
@@ -958,5 +965,12 @@ mod tests {
         let mut parser = setup_parser().unwrap();
         parser.parse(&["-z", "now"]);
         assert_eq!(parser.args.raw_args, vec!["-z", "now"]);
+    }
+
+    #[test]
+    fn u_parsing() {
+        let mut parser = setup_parser().unwrap();
+        parser.parse(&["-u", "foo", "-ubar"]);
+        assert_eq!(parser.args.raw_args, vec!["-u", "foo", "-ubar"]);
     }
 }
