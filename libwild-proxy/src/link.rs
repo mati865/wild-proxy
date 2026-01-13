@@ -190,15 +190,15 @@ pub(crate) fn build_link_args(args: &Args, cpp_mode: bool) -> Result<Vec<String>
     }
     final_linker_args.push(system_library_paths.crti.display().to_string());
     final_linker_args.push(gcc_objects.begin_object.display().to_string());
-    final_linker_args.push(format!("-L{}", gcc_objects.lib_dir.display()));
-    for path in &system_library_paths.library_paths {
-        final_linker_args.push(format!("-L{}", path));
-    }
     final_linker_args.extend(
         args.additional_search_paths
             .iter()
             .map(|path| format!("-L{}", path)),
     );
+    final_linker_args.push(format!("-L{}", gcc_objects.lib_dir.display()));
+    for path in &system_library_paths.library_paths {
+        final_linker_args.push(format!("-L{}", path));
+    }
     // TODO: Do it better, probably move to parsing part
     final_linker_args.extend(args.objects.iter().map(ToString::to_string));
     final_linker_args.extend(args.additional_libs.iter().map(|lib| format! {"-l{lib}"}));
