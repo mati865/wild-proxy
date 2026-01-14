@@ -57,12 +57,16 @@ pub fn process(args: &[&str], zero_position_arg: &str, binary_name: &str) -> Res
         bail!("Help is not supported yet");
     }
 
-    if parsed_args.hash_hash_hash {
+    if parsed_args.hash_hash_hash || parsed_args.verbose || parsed_args.version {
         eprintln!(
             "{} version {}",
             env!("CARGO_PKG_NAME"),
             env!("CARGO_PKG_VERSION")
         );
+    }
+
+    if let Some(fuse_ld) = &parsed_args.fuse_ld {
+        eprintln!("warn: ignoring -fuse-ld={}", fuse_ld);
     }
 
     match parsed_args.mode {
@@ -84,7 +88,7 @@ pub fn process(args: &[&str], zero_position_arg: &str, binary_name: &str) -> Res
             return fallback::fallback();
         }
         Mode::None => {
-            bail!("Could not determine what to do with arguments: {args:?}");
+            // Do nothing
         }
     }
 

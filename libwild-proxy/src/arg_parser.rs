@@ -14,22 +14,28 @@ pub(crate) struct ArgParser {
     pub(crate) unknown_args: Vec<String>,
 }
 
-pub(crate) enum Value<'b> {
+pub(crate) enum FlagValue<'b> {
+    Single(&'b mut bool),
+    Multi(&'b mut Vec<String>),
+}
+
+pub(crate) enum ArgValue<'b> {
     Single(&'b mut Option<String>),
     Multi(&'b mut Vec<String>),
 }
 
 #[derive(Copy, Clone)]
 struct Arg {
-    args_field: for<'b> fn(&'b mut Args) -> Value<'b>,
+    args_field: for<'b> fn(&'b mut Args) -> ArgValue<'b>,
     separator: Option<char>,
     raw: bool,
 }
 
 #[derive(Copy, Clone)]
 struct Flag {
-    args_field: for<'b> fn(&'b mut Args) -> &'b mut bool,
+    args_field: for<'b> fn(&'b mut Args) -> FlagValue<'b>,
     supports_negation: bool,
+    unstripped: bool,
 }
 
 pub(crate) struct FlagBuilder<'p> {
@@ -37,7 +43,8 @@ pub(crate) struct FlagBuilder<'p> {
     long_name: Option<&'static str>,
     short_name: Option<&'static str>,
     supports_negation: bool,
-    args_field: Option<for<'b> fn(&'b mut Args) -> &'b mut bool>,
+    args_field: Option<for<'b> fn(&'b mut Args) -> FlagValue<'b>>,
+    unstripped: bool,
 }
 
 impl<'p> FlagBuilder<'p> {
@@ -60,8 +67,13 @@ impl<'p> FlagBuilder<'p> {
     }
 
     #[must_use]
-    pub(crate) fn bind(mut self, args_field: for<'b> fn(&'b mut Args) -> &'b mut bool) -> Self {
+    pub(crate) fn bind(mut self, args_field: for<'b> fn(&'b mut Args) -> FlagValue<'b>) -> Self {
         self.args_field = Some(args_field);
+        self
+    }
+
+    pub(crate) fn raw(mut self) -> Self {
+        self.unstripped = true;
         self
     }
 
@@ -74,9 +86,20 @@ impl<'p> FlagBuilder<'p> {
             bail!("Flag name is missing");
         }
 
+        if matches!(args_field(&mut self.parser.args), FlagValue::Single(_)) {
+            if self.unstripped {
+                bail!("Cannot use raw with single-value flag")
+            }
+        } else {
+            if self.supports_negation {
+                bail!("Cannot use negation with multi-value flag")
+            }
+        }
+
         let flag = Flag {
             args_field,
             supports_negation: self.supports_negation,
+            unstripped: self.unstripped,
         };
 
         if let Some(long_name) = self.long_name {
@@ -95,7 +118,7 @@ pub(crate) struct ArgBuilder<'p> {
     long_name: Option<&'static str>,
     short_name: Option<&'static str>,
     separator: Option<char>,
-    args_field: Option<for<'b> fn(&'b mut Args) -> Value<'b>>,
+    args_field: Option<for<'b> fn(&'b mut Args) -> ArgValue<'b>>,
     unstripped: bool,
 }
 
@@ -119,7 +142,7 @@ impl<'p> ArgBuilder<'p> {
     }
 
     #[must_use]
-    pub(crate) fn bind(mut self, args_field: for<'b> fn(&'b mut Args) -> Value<'b>) -> Self {
+    pub(crate) fn bind(mut self, args_field: for<'b> fn(&'b mut Args) -> ArgValue<'b>) -> Self {
         self.args_field = Some(args_field);
         self
     }
@@ -163,6 +186,7 @@ impl ArgParser {
             short_name: None,
             supports_negation: false,
             args_field: None,
+            unstripped: false,
         }
     }
 
@@ -199,9 +223,21 @@ impl ArgParser {
         };
 
         if let Some(flag) = flag_map.get(flag_name) {
-            if value || flag.supports_negation {
-                *(flag.args_field)(&mut self.args) = value;
-                return true;
+            match (flag.args_field)(&mut self.args) {
+                FlagValue::Single(single_value) => {
+                    if value || flag.supports_negation {
+                        *single_value = value;
+                        return true;
+                    }
+                }
+                FlagValue::Multi(multi_value) => {
+                    if flag.unstripped {
+                        multi_value.push(raw_arg.to_string());
+                    } else {
+                        multi_value.push(flag_name.to_string());
+                    }
+                    return true;
+                }
             }
         }
 
@@ -228,28 +264,30 @@ impl ArgParser {
         };
 
         let mut next_arg = None;
-        let arg_value_pair = if let Some(pos) = stripped.find(&[',', '=']) {
-            let (key, rest) = stripped.split_at(pos);
-            let val = &rest[1..];
-            arg_map.get(key).map(|arg| (arg, val))
-        } else {
-            let arg = arg_map.get(stripped);
-            if let Some(arg) = arg {
-                next_arg = args_iter.next();
-                Some((arg, next_arg.unwrap()))
-            } else if !is_long {
-                arg_map
-                    .keys()
-                    .find(|&key| stripped.starts_with(key))
-                    .map(|key| (&arg_map[key], stripped.strip_prefix(key).unwrap()))
-            } else {
-                return false;
-            }
-        };
+        let arg_value_pair = stripped
+            .find(&[',', '='])
+            .and_then(|pos| {
+                let (key, rest) = stripped.split_at(pos);
+                let val = &rest[1..];
+                arg_map.get(key).map(|arg| (arg, val))
+            })
+            .or_else(|| {
+                let arg = arg_map.get(stripped);
+                if let Some(arg) = arg {
+                    next_arg = args_iter.next();
+                    Some((arg, next_arg.unwrap()))
+                } else if !is_long {
+                    arg_map
+                        .iter()
+                        .find_map(|(&key, arg)| stripped.strip_prefix(key).map(|val| (arg, val)))
+                } else {
+                    None
+                }
+            });
 
         if let Some((arg, value)) = arg_value_pair {
             match (arg.args_field)(&mut self.args) {
-                Value::Single(single_value) => {
+                ArgValue::Single(single_value) => {
                     if arg.raw {
                         if next_arg.is_some() {
                             panic!("Unstripped argument cannot be created from two arguments");
@@ -260,7 +298,7 @@ impl ArgParser {
                         single_value.replace(value.to_string());
                     }
                 }
-                Value::Multi(multi_value) => {
+                ArgValue::Multi(multi_value) => {
                     if arg.raw {
                         if let Some(next_arg) = next_arg {
                             multi_value.extend([raw_arg.to_string(), next_arg.to_string()]);

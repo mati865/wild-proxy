@@ -1,5 +1,5 @@
 use crate::arch::Arch;
-use crate::arg_parser::{ArgParser, Value};
+use crate::arg_parser::{ArgParser, ArgValue, FlagValue};
 use anyhow::{Result, bail};
 
 // use crate::arch::{Arch, target_arch};
@@ -546,7 +546,7 @@ pub(crate) struct Args {
     pub(crate) input_objects_found: bool,
     pub(crate) raw_args: Vec<String>,
     pub(crate) additional_search_paths: Vec<String>,
-    compiler_b_args: Vec<String>,
+    compiler_args: Vec<String>,
     pub(crate) nodefaultlibs: bool,
     pub(crate) nostartfiles: bool,
     pub(crate) nostdlib: bool,
@@ -565,6 +565,9 @@ pub(crate) struct Args {
     pub(crate) sources: Vec<String>,
     pub(crate) help: bool,
     pub(crate) hash_hash_hash: bool,
+    pub(crate) verbose: bool,
+    pub(crate) version: bool,
+    pub(crate) fuse_ld: Option<String>,
 }
 
 impl Default for Args {
@@ -580,7 +583,7 @@ impl Default for Args {
             input_objects_found: false,
             additional_search_paths: Vec::new(),
             raw_args: vec![],
-            compiler_b_args: vec![],
+            compiler_args: vec![],
             nodefaultlibs: false,
             nostartfiles: false,
             nostdlib: false,
@@ -598,6 +601,9 @@ impl Default for Args {
             sources: vec![],
             help: false,
             hash_hash_hash: false,
+            verbose: false,
+            version: false,
+            fuse_ld: None,
         }
     }
 }
@@ -629,12 +635,16 @@ impl Args {
                 args.mode = Mode::CompileAndLink
             } else if args.input_objects_found {
                 args.mode = Mode::LinkOnly
+            } else if args.version {
+                // If no specific mode can be determined, and we are asked to print the version,
+                // this is probably a build system that tries to determine the compiler kind.
+                args.mode = Mode::CompileOnly
             }
         }
 
         if std::env::var_os("WILD_PROXY_DENY_UNKNOWN_ARGS").is_some() {
             if !parser.unknown_args.is_empty() {
-                bail!("Unhandled args: \"{}\"", parser.unknown_args.join(" "));
+                bail!("Unhandled args: \"{}\"", parser.unknown_args.join("\" \""));
             }
         }
 
@@ -649,27 +659,27 @@ fn setup_parser() -> Result<ArgParser> {
         .declare_flag()
         .short("pie")
         .with_negation(true)
-        .bind(|args| &mut args.pie)
+        .bind(|args| FlagValue::Single(&mut args.pie))
         .build()?;
 
     parser
         .declare_flag()
         .long("shared")
         .short("shared")
-        .bind(|args| &mut args.shared)
+        .bind(|args| FlagValue::Single(&mut args.shared))
         .build()?;
 
     parser
         .declare_flag()
         .long("static")
         .short("static")
-        .bind(|args| &mut args.static_exe)
+        .bind(|args| FlagValue::Single(&mut args.static_exe))
         .build()?;
 
     parser
         .declare_flag()
         .short("static-pie")
-        .bind(|args| &mut args.static_pie)
+        .bind(|args| FlagValue::Single(&mut args.static_pie))
         .build()?;
 
     parser
@@ -677,140 +687,336 @@ fn setup_parser() -> Result<ArgParser> {
         .long("pthread")
         .short("pthread")
         .with_negation(true)
-        .bind(|args| &mut args.pthread)
+        .bind(|args| FlagValue::Single(&mut args.pthread))
         .build()?;
 
     parser
         .declare_flag()
         .short("nodefaultlibs")
-        .bind(|args| &mut args.nodefaultlibs)
+        .bind(|args| FlagValue::Single(&mut args.nodefaultlibs))
         .build()?;
 
     parser
         .declare_flag()
         .long("nostartfiles")
-        .bind(|args| &mut args.nostartfiles)
+        .bind(|args| FlagValue::Single(&mut args.nostartfiles))
         .build()?;
 
     parser
         .declare_flag()
         .long("nostdlib")
-        .bind(|args| &mut args.nostdlib)
+        .bind(|args| FlagValue::Single(&mut args.nostdlib))
         .build()?;
 
     parser
         .declare_flag()
         .long("coverage")
         .short("coverage")
-        .bind(|args| &mut args.coverage)
+        .bind(|args| FlagValue::Single(&mut args.coverage))
         .build()?;
 
     parser
         .declare_flag()
         .long("profile")
         .short("-pg")
-        .bind(|args| &mut args.profile)
+        .bind(|args| FlagValue::Single(&mut args.profile))
         .build()?;
 
     parser
         .declare_flag()
         .short("c")
-        .bind(|arg| &mut arg.dont_link)
+        .bind(|arg| FlagValue::Single(&mut arg.dont_link))
         .build()?;
 
     parser
         .declare_flag()
         .short("S")
-        .bind(|arg| &mut arg.dont_assemble)
+        .bind(|arg| FlagValue::Single(&mut arg.dont_assemble))
         .build()?;
 
     parser
         .declare_flag()
         .long("help")
-        .bind(|args| &mut args.help)
+        .bind(|args| FlagValue::Single(&mut args.help))
         .build()?;
 
     parser
         .declare_flag()
         .short("###")
-        .bind(|args| &mut args.hash_hash_hash)
+        .bind(|args| FlagValue::Single(&mut args.hash_hash_hash))
+        .build()?;
+
+    parser
+        .declare_flag()
+        .short("v")
+        .long("verbose")
+        .bind(|args| FlagValue::Single(&mut args.verbose))
+        .build()?;
+
+    parser
+        .declare_flag()
+        .long("version")
+        .bind(|args| FlagValue::Single(&mut args.version))
+        .build()?;
+
+    parser
+        .declare_flag()
+        .short("E")
+        .bind(|args| FlagValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_flag()
+        .short("M")
+        .bind(|args| FlagValue::Multi(&mut args.compiler_args))
+        .raw()
         .build()?;
 
     parser
         .declare_arg()
         .short("o")
-        .bind(|args| Value::Single(&mut args.out))
+        .bind(|args| ArgValue::Single(&mut args.out))
         .build()?;
 
     parser
         .declare_arg()
         .short("x")
-        .bind(|args| Value::Single(&mut args.language))
+        .bind(|args| ArgValue::Single(&mut args.language))
         .build()?;
 
     parser
         .declare_arg()
         .short("B")
-        .bind(|args| Value::Multi(&mut args.compiler_b_args))
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("m")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("D")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("I")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("W")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("M")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("MF")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("MJ")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("MQ")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("MT")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("O")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("std")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("f")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("pedantic")
+        .long("pedantic")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("idirafter")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("imacros")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("imultilib")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("include")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("iprefix")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("iquote")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("isysroot")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("isystem")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("iwithprefix")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("iwithprefixbefore")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
         .build()?;
 
     parser
         .declare_arg()
         .short("l")
-        .bind(|args| Value::Multi(&mut args.raw_args))
+        .bind(|args| ArgValue::Multi(&mut args.raw_args))
         .raw()
         .build()?;
 
     parser
         .declare_arg()
         .short("L")
-        .bind(|args| Value::Multi(&mut args.additional_search_paths))
+        .bind(|args| ArgValue::Multi(&mut args.additional_search_paths))
         .build()?;
 
     parser
         .declare_arg()
         .short("target")
         .long("target")
-        .bind(|args| Value::Single(&mut args.target))
+        .bind(|args| ArgValue::Single(&mut args.target))
         .build()?;
 
     parser
         .declare_arg()
         .long("sysroot")
-        .bind(|args| Value::Single(&mut args.sysroot))
+        .bind(|args| ArgValue::Single(&mut args.sysroot))
         .build()?;
 
     parser
         .declare_arg()
         .short("T")
-        .bind(|args| Value::Multi(&mut args.scripts))
+        .bind(|args| ArgValue::Multi(&mut args.scripts))
         .build()?;
 
     parser
         .declare_arg()
         .short("Wl")
         .with_separator(',')
-        .bind(|args| Value::Multi(&mut args.raw_args))
+        .bind(|args| ArgValue::Multi(&mut args.raw_args))
         .build()?;
 
     parser
         .declare_arg()
         .short("Xlinker")
-        .bind(|args| Value::Multi(&mut args.raw_args))
+        .bind(|args| ArgValue::Multi(&mut args.raw_args))
         .build()?;
 
     parser
         .declare_arg()
         .short("z")
-        .bind(|args| Value::Multi(&mut args.raw_args))
+        .bind(|args| ArgValue::Multi(&mut args.raw_args))
         .raw()
         .build()?;
 
     parser
         .declare_arg()
         .short("u")
-        .bind(|args| Value::Multi(&mut args.raw_args))
+        .bind(|args| ArgValue::Multi(&mut args.raw_args))
         .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .short("fuse-ld")
+        .bind(|args| ArgValue::Single(&mut args.fuse_ld))
         .build()?;
 
     Ok(parser)
@@ -828,6 +1034,7 @@ mod tests {
         assert!(parser.args.pthread);
         parser.parse(&["-no-pthread"]);
         assert!(!parser.args.pthread);
+        assert!(parser.unknown_args.is_empty());
     }
 
     #[test]
@@ -838,6 +1045,7 @@ mod tests {
         assert_eq!(parser.args.sysroot.as_deref(), Some("/foo"));
         parser.parse(&["--sysroot", "/bar"]);
         assert_eq!(parser.args.sysroot.as_deref(), Some("/bar"));
+        assert!(parser.unknown_args.is_empty());
     }
 
     #[test]
@@ -845,7 +1053,8 @@ mod tests {
         let mut parser = setup_parser().unwrap();
         assert!(parser.args.scripts.is_empty());
         parser.parse(&["-T", "/foo", "-T/bar"]);
-        assert_eq!(parser.args.scripts, vec!["/foo", "/bar"]);
+        assert_eq!(parser.args.scripts, ["/foo", "/bar"]);
+        assert!(parser.unknown_args.is_empty());
     }
 
     #[test]
@@ -867,20 +1076,40 @@ mod tests {
         expected.push("-z,relro");
         parser.parse(&["-Xlinker", "-z,relro"]);
         assert_eq!(parser.args.raw_args, expected);
+        assert!(parser.unknown_args.is_empty());
     }
 
     #[test]
     fn compiler_args_parsing() {
         let mut parser = setup_parser().unwrap();
-        parser.parse(&["-B/foo", "-B", "/bar", "-Bstatic"]);
-        assert_eq!(parser.args.compiler_b_args, vec!["/foo", "/bar", "static"]);
+        let args = [
+            "-B/foo",
+            "-B",
+            "/bar",
+            "-Bstatic",
+            "-m64",
+            "-DNDEBUG",
+            "-DFOO=BAR",
+            "-O3",
+            "-I/foo/bar",
+            "-Werror",
+            "-std=c23",
+            "-fPIC",
+            "-pedantic",
+            "--pedantic",
+            "-E",
+        ];
+        parser.parse(&args);
+        assert_eq!(parser.args.compiler_args, args);
+        assert!(parser.unknown_args.is_empty());
     }
 
     #[test]
     fn additional_libs_parsing() {
         let mut parser = setup_parser().unwrap();
         parser.parse(&["-lfoo", "-lbar"]);
-        assert_eq!(parser.args.raw_args, vec!["-lfoo", "-lbar"]);
+        assert_eq!(parser.args.raw_args, ["-lfoo", "-lbar"]);
+        assert!(parser.unknown_args.is_empty());
     }
 
     #[test]
@@ -891,6 +1120,7 @@ mod tests {
             parser.args.additional_search_paths,
             vec!["/foo", "/bar/baz"]
         );
+        assert!(parser.unknown_args.is_empty());
     }
 
     #[test]
@@ -899,7 +1129,8 @@ mod tests {
         parser.parse(&["--target=x86_64-linux-gnu"]);
         assert_eq!(parser.args.target.as_deref(), Some("x86_64-linux-gnu"));
         parser.parse(&["-target", "aarch64-linux-gnu"]);
-        assert_eq!(parser.args.target.as_deref(), Some("aarch64-linux-gnu"))
+        assert_eq!(parser.args.target.as_deref(), Some("aarch64-linux-gnu"));
+        assert!(parser.unknown_args.is_empty());
     }
 
     #[test]
@@ -908,6 +1139,7 @@ mod tests {
         assert!(!parser.args.coverage);
         parser.parse(&["--coverage"]);
         assert!(parser.args.coverage);
+        assert!(parser.unknown_args.is_empty());
     }
 
     #[test]
@@ -916,6 +1148,7 @@ mod tests {
         assert!(!parser.args.profile);
         parser.parse(&["--profile"]);
         assert!(parser.args.profile);
+        assert!(parser.unknown_args.is_empty());
     }
 
     #[test]
@@ -937,6 +1170,7 @@ mod tests {
         assert_eq!(parser.args.language.as_deref(), Some("c"));
         parser.parse(&["-xc++"]);
         assert_eq!(parser.args.language.as_deref(), Some("c++"));
+        assert!(parser.unknown_args.is_empty());
     }
 
     #[test]
@@ -947,6 +1181,7 @@ mod tests {
         assert_eq!(parser.args.sources, args[..1]);
         assert_eq!(parser.args.raw_args, args[1..]);
         assert!(parser.args.input_objects_found);
+        assert!(parser.unknown_args.is_empty());
     }
 
     #[test]
@@ -956,6 +1191,7 @@ mod tests {
         assert_eq!(parser.args.out.as_deref(), Some("foo"));
         parser.parse(&["-o/tmp/bar"]);
         assert_eq!(parser.args.out.as_deref(), Some("/tmp/bar"));
+        assert!(parser.unknown_args.is_empty());
     }
 
     #[test]
@@ -964,6 +1200,7 @@ mod tests {
         assert!(!parser.args.dont_assemble);
         parser.parse(&["-S"]);
         assert!(parser.args.dont_assemble);
+        assert!(parser.unknown_args.is_empty());
     }
 
     #[test]
@@ -972,19 +1209,155 @@ mod tests {
         assert!(!parser.args.dont_link);
         parser.parse(&["-c"]);
         assert!(parser.args.dont_link);
+        assert!(parser.unknown_args.is_empty());
     }
 
     #[test]
     fn z_parsing() {
         let mut parser = setup_parser().unwrap();
         parser.parse(&["-z", "now"]);
-        assert_eq!(parser.args.raw_args, vec!["-z", "now"]);
+        assert_eq!(parser.args.raw_args, ["-z", "now"]);
+        assert!(parser.unknown_args.is_empty());
     }
 
     #[test]
     fn u_parsing() {
         let mut parser = setup_parser().unwrap();
         parser.parse(&["-u", "foo", "-ubar"]);
-        assert_eq!(parser.args.raw_args, vec!["-u", "foo", "-ubar"]);
+        assert_eq!(parser.args.raw_args, ["-u", "foo", "-ubar"]);
+        assert!(parser.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn fuse_ld_parsing() {
+        let mut parser = setup_parser().unwrap();
+        parser.parse(&["-fuse-ld=lld"]);
+        assert_eq!(parser.args.fuse_ld.as_deref(), Some("lld"));
+        assert!(parser.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn help_parsing() {
+        let mut parser = setup_parser().unwrap();
+        assert!(!parser.args.help);
+        parser.parse(&["--help"]);
+        assert!(parser.args.help);
+        assert!(parser.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn hash_hash_hash_parsing() {
+        let mut parser = setup_parser().unwrap();
+        assert!(!parser.args.hash_hash_hash);
+        parser.parse(&["-###"]);
+        assert!(parser.args.hash_hash_hash);
+        assert!(parser.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn v_parsing() {
+        let mut parser = setup_parser().unwrap();
+        assert!(!parser.args.verbose);
+        parser.parse(&["-v"]);
+        assert!(parser.args.verbose);
+        assert!(parser.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn verbose_parsing() {
+        let mut parser = setup_parser().unwrap();
+        assert!(!parser.args.verbose);
+        parser.parse(&["--verbose"]);
+        assert!(parser.args.verbose);
+        assert!(parser.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn version_parsing() {
+        let mut parser = setup_parser().unwrap();
+        assert!(!parser.args.version);
+        parser.parse(&["--version"]);
+        assert!(parser.args.version);
+        assert!(parser.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn compiler_i_args_parsing() {
+        let mut parser = setup_parser().unwrap();
+        let args = [
+            "-idirafter",
+            "/foo",
+            "-idirafter=/bar",
+            "-imacros",
+            "foo.h",
+            "-imacros=bar.h",
+            "-imultilib",
+            "lib",
+            "-imultilib=lib64",
+            "-include",
+            "foo.h",
+            "-include=bar.h",
+            "-iprefix",
+            "/usr",
+            "-iprefix=/opt",
+            "-iquote",
+            "/foo",
+            "-iquote=/bar",
+            "-isysroot",
+            "/sysroot",
+            "-isysroot=/newsysroot",
+            "-isystem",
+            "/usr/include",
+            "-isystem=/opt/include",
+            "-iwithprefix",
+            "include",
+            "-iwithprefix=local",
+            "-iwithprefixbefore",
+            "include",
+            "-iwithprefixbefore=local",
+        ];
+        parser.parse(&args);
+        assert_eq!(parser.args.compiler_args, args);
+        assert!(parser.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn compiler_m_args_parsing() {
+        let mut parser = setup_parser().unwrap();
+        parser.parse(&[
+            "-M",
+            "should-not-be-added",
+            "-MD",
+            "-MF",
+            "/tmp/foo.o.d",
+            "-MG",
+            "-MM",
+            "-MMD",
+            "-MP",
+            "-MQ",
+            "foo.o",
+            "-MT",
+            "bar.o",
+            "-MV",
+        ]);
+        assert_eq!(
+            parser.args.compiler_args,
+            [
+                "-M",
+                "-MD",
+                "-MF",
+                "/tmp/foo.o.d",
+                "-MG",
+                "-MM",
+                "-MMD",
+                "-MP",
+                "-MQ",
+                "foo.o",
+                "-MT",
+                "bar.o",
+                "-MV",
+            ]
+        );
+        assert!(parser.unknown_args.is_empty());
     }
 }

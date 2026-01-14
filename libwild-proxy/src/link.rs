@@ -154,9 +154,10 @@ fn gcc_objects(args: &Args) -> Result<GccObjects> {
 pub(crate) fn link(args: &Args, cpp_mode: bool) -> Result<()> {
     let linker_args = build_link_args(&args, cpp_mode)?;
 
-    if args.hash_hash_hash {
+    if args.hash_hash_hash || args.verbose {
         eprintln!(" wild {}", linker_args.join(" "));
-    } else {
+    }
+    if !args.hash_hash_hash {
         let wild_args = libwild::Args::parse(|| linker_args.iter()).expect("todo");
         unsafe { libwild::run_in_subprocess(wild_args) }
     }
