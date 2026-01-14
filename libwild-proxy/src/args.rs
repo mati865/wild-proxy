@@ -1,6 +1,6 @@
 use crate::arch::Arch;
 use crate::arg_parser::{ArgParser, Value};
-use anyhow::Result;
+use anyhow::{Result, bail};
 
 // use crate::arch::{Arch, target_arch};
 // use anyhow::{Context, Result};
@@ -629,6 +629,12 @@ impl Args {
                 args.mode = Mode::CompileAndLink
             } else if args.input_objects_found {
                 args.mode = Mode::LinkOnly
+            }
+        }
+
+        if std::env::var_os("WILD_PROXY_DENY_UNKNOWN_ARGS").is_some() {
+            if !parser.unknown_args.is_empty() {
+                bail!("Unhandled args: \"{}\"", parser.unknown_args.join(" "));
             }
         }
 
