@@ -800,6 +800,23 @@ fn setup_parser() -> Result<ArgParser> {
         .raw()
         .build()?;
 
+    // TODO: properly handle (not just forward) all `--print-*` args
+    parser
+        .declare_flag()
+        .long("print-search-dirs")
+        .short("print-search-dirs")
+        .bind(|args| FlagValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_flag()
+        .long("print-multi-os-directory")
+        .short("print-multi-os-directory")
+        .bind(|args| FlagValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
     parser
         .declare_arg()
         .short("o")
@@ -987,6 +1004,15 @@ fn setup_parser() -> Result<ArgParser> {
     parser
         .declare_arg()
         .short("iwithprefixbefore")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    // TODO: properly handle (not just forward) all `--print-*` args
+    parser
+        .declare_arg()
+        .long("print-prog-name")
+        .short("print-prog-name")
         .bind(|args| ArgValue::Multi(&mut args.compiler_args))
         .raw()
         .build()?;
@@ -1461,6 +1487,22 @@ mod tests {
         let mut parser = setup_parser().unwrap();
         parser.parse(&["foo", "-", "bar"]);
         assert_eq!(parser.args.compiler_args, ["-"]);
+        assert!(parser.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn print_parsing() {
+        let mut parser = setup_parser().unwrap();
+        let args = [
+            "--print-prog-name",
+            "ar",
+            "-print-prog-name=ranlib",
+            "--print-search-dirs",
+            "-print-search-dirs",
+            "-print-multi-os-directory",
+        ];
+        parser.parse(&args);
+        assert_eq!(parser.args.compiler_args, args);
         assert!(parser.unknown_args.is_empty());
     }
 }
