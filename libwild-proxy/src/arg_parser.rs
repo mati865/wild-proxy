@@ -20,7 +20,8 @@ pub(crate) enum FlagValue<'b> {
 }
 
 pub(crate) enum ArgValue<'b> {
-    Single(&'b mut Option<String>),
+    Single(&'b mut String),
+    SingleOptional(&'b mut Option<String>),
     Multi(&'b mut Vec<String>),
 }
 
@@ -288,6 +289,17 @@ impl ArgParser {
         if let Some((arg, value)) = arg_value_pair {
             match (arg.args_field)(&mut self.args) {
                 ArgValue::Single(single_value) => {
+                    if arg.raw {
+                        if next_arg.is_some() {
+                            panic!("Unstripped argument cannot be created from two arguments");
+                        } else {
+                            *single_value = raw_arg.to_string();
+                        }
+                    } else {
+                        *single_value = value.to_string();
+                    }
+                }
+                ArgValue::SingleOptional(single_value) => {
                     if arg.raw {
                         if next_arg.is_some() {
                             panic!("Unstripped argument cannot be created from two arguments");

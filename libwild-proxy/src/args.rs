@@ -556,8 +556,6 @@ pub(crate) struct Args {
     language: Option<String>,
     dont_assemble: bool,
     dont_link: bool,
-    // TODO: Make it not an option
-    out: Option<String>,
     pub(crate) output: String,
     pub(crate) output_kind: OutputKind,
     pub(crate) mode: Mode,
@@ -593,7 +591,6 @@ impl Default for Args {
             language: None,
             dont_assemble: false,
             dont_link: false,
-            out: None,
             output: "a.out".to_string(),
             output_kind: Default::default(),
             mode: Default::default(),
@@ -623,10 +620,6 @@ impl Args {
                 args.arch = crate::arch::target_arch(target)?;
             } else if let Some(target) = target {
                 args.arch = target;
-            }
-
-            if let Some(out) = args.out.take() {
-                args.output = out;
             }
 
             if args.dont_assemble || args.dont_link {
@@ -776,13 +769,13 @@ fn setup_parser() -> Result<ArgParser> {
     parser
         .declare_arg()
         .short("o")
-        .bind(|args| ArgValue::Single(&mut args.out))
+        .bind(|args| ArgValue::Single(&mut args.output))
         .build()?;
 
     parser
         .declare_arg()
         .short("x")
-        .bind(|args| ArgValue::Single(&mut args.language))
+        .bind(|args| ArgValue::SingleOptional(&mut args.language))
         .build()?;
 
     parser
@@ -971,13 +964,13 @@ fn setup_parser() -> Result<ArgParser> {
         .declare_arg()
         .short("target")
         .long("target")
-        .bind(|args| ArgValue::Single(&mut args.target))
+        .bind(|args| ArgValue::SingleOptional(&mut args.target))
         .build()?;
 
     parser
         .declare_arg()
         .long("sysroot")
-        .bind(|args| ArgValue::Single(&mut args.sysroot))
+        .bind(|args| ArgValue::SingleOptional(&mut args.sysroot))
         .build()?;
 
     parser
@@ -1016,7 +1009,7 @@ fn setup_parser() -> Result<ArgParser> {
     parser
         .declare_arg()
         .short("fuse-ld")
-        .bind(|args| ArgValue::Single(&mut args.fuse_ld))
+        .bind(|args| ArgValue::SingleOptional(&mut args.fuse_ld))
         .build()?;
 
     Ok(parser)
@@ -1187,10 +1180,11 @@ mod tests {
     #[test]
     fn out_parsing() {
         let mut parser = setup_parser().unwrap();
+        assert_eq!(parser.args.output, "a.out");
         parser.parse(&["-o", "foo"]);
-        assert_eq!(parser.args.out.as_deref(), Some("foo"));
+        assert_eq!(parser.args.output, "foo");
         parser.parse(&["-o/tmp/bar"]);
-        assert_eq!(parser.args.out.as_deref(), Some("/tmp/bar"));
+        assert_eq!(parser.args.output, "/tmp/bar");
         assert!(parser.unknown_args.is_empty());
     }
 
