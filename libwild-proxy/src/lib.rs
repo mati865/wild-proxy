@@ -76,7 +76,7 @@ pub fn process(args: &[&str], zero_position_arg: &str, binary_name: &str) -> Res
             link::link(&parsed_args, cpp_mode)?;
         }
         Mode::CompileAndLink => {
-            eprintln!("warn: using fallback");
+            println!("warn: using fallback");
             return fallback::fallback();
         }
         Mode::None => {
