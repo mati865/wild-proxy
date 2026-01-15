@@ -635,10 +635,8 @@ impl Args {
             }
         }
 
-        if std::env::var_os("WILD_PROXY_DENY_UNKNOWN_ARGS").is_some() {
-            if !parser.unknown_args.is_empty() {
-                bail!("Unhandled args: \"{}\"", parser.unknown_args.join("\" \""));
-            }
+        if !parser.unknown_args.is_empty() {
+            bail!("Unhandled args: \"{}\"", parser.unknown_args.join("\" \""));
         }
 
         Ok(args)
