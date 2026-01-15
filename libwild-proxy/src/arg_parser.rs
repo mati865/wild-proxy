@@ -377,7 +377,7 @@ impl ArgParser {
                     self.args.sources.push(arg.to_string());
                 } else {
                     self.args.input_objects_found = true;
-                    self.args.raw_args.push(arg.to_string());
+                    self.args.raw_linker_args.push(arg.to_string());
                 }
             }
         }

@@ -544,7 +544,7 @@ pub(crate) struct Args {
     static_exe: bool,
     static_pie: bool,
     pub(crate) input_objects_found: bool,
-    pub(crate) raw_args: Vec<String>,
+    pub(crate) raw_linker_args: Vec<String>,
     pub(crate) additional_search_paths: Vec<String>,
     compiler_args: Vec<String>,
     pub(crate) nodefaultlibs: bool,
@@ -580,7 +580,7 @@ impl Default for Args {
             static_pie: false,
             input_objects_found: false,
             additional_search_paths: Vec::new(),
-            raw_args: vec![],
+            raw_linker_args: vec![],
             compiler_args: vec![],
             nodefaultlibs: false,
             nostartfiles: false,
@@ -626,7 +626,7 @@ impl Args {
                 args.mode = Mode::CompileOnly;
             } else if !args.sources.is_empty() {
                 args.mode = Mode::CompileAndLink
-            } else if args.input_objects_found {
+            } else if args.input_objects_found || !args.raw_linker_args.is_empty() {
                 args.mode = Mode::LinkOnly
             } else if args.version {
                 // If no specific mode can be determined, and we are asked to print the version,
@@ -994,7 +994,7 @@ fn setup_parser() -> Result<ArgParser> {
     parser
         .declare_arg()
         .short_or_prefix("l")
-        .bind(|args| ArgValue::Multi(&mut args.raw_args))
+        .bind(|args| ArgValue::Multi(&mut args.raw_linker_args))
         .raw()
         .build()?;
 
@@ -1027,26 +1027,26 @@ fn setup_parser() -> Result<ArgParser> {
         .declare_arg()
         .short_or_prefix("Wl")
         .with_separator(',')
-        .bind(|args| ArgValue::Multi(&mut args.raw_args))
+        .bind(|args| ArgValue::Multi(&mut args.raw_linker_args))
         .build()?;
 
     parser
         .declare_arg()
         .short("Xlinker")
-        .bind(|args| ArgValue::Multi(&mut args.raw_args))
+        .bind(|args| ArgValue::Multi(&mut args.raw_linker_args))
         .build()?;
 
     parser
         .declare_arg()
         .short_or_prefix("z")
-        .bind(|args| ArgValue::Multi(&mut args.raw_args))
+        .bind(|args| ArgValue::Multi(&mut args.raw_linker_args))
         .raw()
         .build()?;
 
     parser
         .declare_arg()
         .short_or_prefix("u")
-        .bind(|args| ArgValue::Multi(&mut args.raw_args))
+        .bind(|args| ArgValue::Multi(&mut args.raw_linker_args))
         .raw()
         .build()?;
 
@@ -1111,10 +1111,10 @@ mod tests {
             "now",
             "-soname=librustc_driver-23d51a7ae6381501.so",
         ];
-        assert_eq!(parser.args.raw_args, expected);
+        assert_eq!(parser.args.raw_linker_args, expected);
         expected.push("-z,relro");
         parser.parse(&["-Xlinker", "-z,relro"]);
-        assert_eq!(parser.args.raw_args, expected);
+        assert_eq!(parser.args.raw_linker_args, expected);
         assert!(parser.unknown_args.is_empty());
     }
 
@@ -1147,7 +1147,7 @@ mod tests {
     fn additional_libs_parsing() {
         let mut parser = setup_parser().unwrap();
         parser.parse(&["-lfoo", "-lbar"]);
-        assert_eq!(parser.args.raw_args, ["-lfoo", "-lbar"]);
+        assert_eq!(parser.args.raw_linker_args, ["-lfoo", "-lbar"]);
         assert!(parser.unknown_args.is_empty());
     }
 
@@ -1227,7 +1227,7 @@ mod tests {
         let args = &["foo.c", "bar.o", "baz.a", "qux"];
         parser.parse(args);
         assert_eq!(parser.args.sources, args[..1]);
-        assert_eq!(parser.args.raw_args, args[1..]);
+        assert_eq!(parser.args.raw_linker_args, args[1..]);
         assert!(parser.args.input_objects_found);
         assert!(parser.unknown_args.is_empty());
     }
@@ -1265,7 +1265,7 @@ mod tests {
     fn z_parsing() {
         let mut parser = setup_parser().unwrap();
         parser.parse(&["-z", "now"]);
-        assert_eq!(parser.args.raw_args, ["-z", "now"]);
+        assert_eq!(parser.args.raw_linker_args, ["-z", "now"]);
         assert!(parser.unknown_args.is_empty());
     }
 
@@ -1273,7 +1273,7 @@ mod tests {
     fn u_parsing() {
         let mut parser = setup_parser().unwrap();
         parser.parse(&["-u", "foo", "-ubar"]);
-        assert_eq!(parser.args.raw_args, ["-u", "foo", "-ubar"]);
+        assert_eq!(parser.args.raw_linker_args, ["-u", "foo", "-ubar"]);
         assert!(parser.unknown_args.is_empty());
     }
 
