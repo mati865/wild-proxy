@@ -1025,7 +1025,7 @@ fn setup_parser() -> Result<ArgParser> {
 
     parser
         .declare_arg()
-        .short_or_prefix("Wl")
+        .short("Wl")
         .with_separator(',')
         .bind(|args| ArgValue::Multi(&mut args.raw_linker_args))
         .build()?;
@@ -1132,6 +1132,7 @@ mod tests {
             "-O3",
             "-I/foo/bar",
             "-Werror",
+            "-Wlogical-op",
             "-std=c23",
             "-fPIC",
             "-pedantic",
