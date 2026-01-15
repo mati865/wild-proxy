@@ -228,7 +228,7 @@ pub(crate) fn build_link_args(args: &Args, cpp_mode: bool) -> Result<Vec<String>
         }
     }
     if args.pthread {
-        final_linker_args.push("-pthread".to_string());
+        final_linker_args.push("-lpthread".to_string());
     }
     final_linker_args.push(gcc_objects.end_object.display().to_string());
     final_linker_args.push(system_library_paths.crtn.display().to_string());
