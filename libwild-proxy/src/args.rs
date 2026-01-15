@@ -787,6 +787,20 @@ fn setup_parser() -> Result<ArgParser> {
         .build()?;
 
     parser
+        .declare_flag()
+        .short("cpp")
+        .bind(|args| FlagValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_flag()
+        .short("")
+        .bind(|args| FlagValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
         .declare_arg()
         .short("o")
         .prefix("o")
@@ -1429,6 +1443,23 @@ mod tests {
         let args = ["-dM"];
         parser.parse(&args);
         assert_eq!(parser.args.compiler_args, args);
+        assert!(parser.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn cpp_parsing() {
+        let mut parser = setup_parser().unwrap();
+        let args = ["-cpp"];
+        parser.parse(&args);
+        assert_eq!(parser.args.compiler_args, args);
+        assert!(parser.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn dash_parsing() {
+        let mut parser = setup_parser().unwrap();
+        parser.parse(&["foo", "-", "bar"]);
+        assert_eq!(parser.args.compiler_args, ["-"]);
         assert!(parser.unknown_args.is_empty());
     }
 }
