@@ -769,53 +769,56 @@ fn setup_parser() -> Result<ArgParser> {
     parser
         .declare_arg()
         .short("o")
+        .prefix("o")
         .bind(|args| ArgValue::Single(&mut args.output))
         .build()?;
 
     parser
         .declare_arg()
         .short("x")
+        .prefix("x")
         .bind(|args| ArgValue::SingleOptional(&mut args.language))
         .build()?;
 
     parser
         .declare_arg()
         .short("B")
+        .prefix("B")
         .bind(|args| ArgValue::Multi(&mut args.compiler_args))
         .raw()
         .build()?;
 
     parser
         .declare_arg()
-        .short("m")
+        .prefix("m")
         .bind(|args| ArgValue::Multi(&mut args.compiler_args))
         .raw()
         .build()?;
 
     parser
         .declare_arg()
-        .short("D")
+        .prefix("D")
         .bind(|args| ArgValue::Multi(&mut args.compiler_args))
         .raw()
         .build()?;
 
     parser
         .declare_arg()
-        .short("I")
+        .prefix("I")
         .bind(|args| ArgValue::Multi(&mut args.compiler_args))
         .raw()
         .build()?;
 
     parser
         .declare_arg()
-        .short("W")
+        .prefix("W")
         .bind(|args| ArgValue::Multi(&mut args.compiler_args))
         .raw()
         .build()?;
 
     parser
         .declare_arg()
-        .short("M")
+        .prefix("M")
         .bind(|args| ArgValue::Multi(&mut args.compiler_args))
         .raw()
         .build()?;
@@ -850,7 +853,7 @@ fn setup_parser() -> Result<ArgParser> {
 
     parser
         .declare_arg()
-        .short("O")
+        .short_or_prefix("O")
         .bind(|args| ArgValue::Multi(&mut args.compiler_args))
         .raw()
         .build()?;
@@ -864,7 +867,7 @@ fn setup_parser() -> Result<ArgParser> {
 
     parser
         .declare_arg()
-        .short("f")
+        .prefix("f")
         .bind(|args| ArgValue::Multi(&mut args.compiler_args))
         .raw()
         .build()?;
@@ -949,14 +952,14 @@ fn setup_parser() -> Result<ArgParser> {
 
     parser
         .declare_arg()
-        .short("l")
+        .short_or_prefix("l")
         .bind(|args| ArgValue::Multi(&mut args.raw_args))
         .raw()
         .build()?;
 
     parser
         .declare_arg()
-        .short("L")
+        .short_or_prefix("L")
         .bind(|args| ArgValue::Multi(&mut args.additional_search_paths))
         .build()?;
 
@@ -975,13 +978,13 @@ fn setup_parser() -> Result<ArgParser> {
 
     parser
         .declare_arg()
-        .short("T")
+        .short_or_prefix("T")
         .bind(|args| ArgValue::Multi(&mut args.scripts))
         .build()?;
 
     parser
         .declare_arg()
-        .short("Wl")
+        .short_or_prefix("Wl")
         .with_separator(',')
         .bind(|args| ArgValue::Multi(&mut args.raw_args))
         .build()?;
@@ -994,14 +997,14 @@ fn setup_parser() -> Result<ArgParser> {
 
     parser
         .declare_arg()
-        .short("z")
+        .short_or_prefix("z")
         .bind(|args| ArgValue::Multi(&mut args.raw_args))
         .raw()
         .build()?;
 
     parser
         .declare_arg()
-        .short("u")
+        .short_or_prefix("u")
         .bind(|args| ArgValue::Multi(&mut args.raw_args))
         .raw()
         .build()?;

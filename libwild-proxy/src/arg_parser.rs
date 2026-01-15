@@ -9,6 +9,7 @@ pub(crate) struct ArgParser {
     pub(crate) args: Args,
     short_args: HashMap<&'static str, Arg>,
     long_args: HashMap<&'static str, Arg>,
+    arg_prefixes: HashMap<&'static str, Arg>,
     short_flags: HashMap<&'static str, Flag>,
     long_flags: HashMap<&'static str, Flag>,
     pub(crate) unknown_args: Vec<String>,
@@ -118,6 +119,7 @@ pub(crate) struct ArgBuilder<'p> {
     parser: &'p mut ArgParser,
     long_name: Option<&'static str>,
     short_name: Option<&'static str>,
+    name_prefix: Option<&'static str>,
     separator: Option<char>,
     args_field: Option<for<'b> fn(&'b mut Args) -> ArgValue<'b>>,
     unstripped: bool,
@@ -133,6 +135,19 @@ impl<'p> ArgBuilder<'p> {
     #[must_use]
     pub(crate) fn long(mut self, name: &'static str) -> Self {
         self.long_name = Some(name);
+        self
+    }
+
+    #[must_use]
+    pub(crate) fn prefix(mut self, prefix: &'static str) -> Self {
+        self.name_prefix = Some(prefix);
+        self
+    }
+
+    #[must_use]
+    pub(crate) fn short_or_prefix(mut self, name: &'static str) -> Self {
+        self.short_name = Some(name);
+        self.name_prefix = Some(name);
         self
     }
 
@@ -158,7 +173,7 @@ impl<'p> ArgBuilder<'p> {
             .args_field
             .context("A field must be bound to the argument using bind()")?;
 
-        if self.long_name.is_none() && self.short_name.is_none() {
+        if self.long_name.is_none() && self.short_name.is_none() && self.name_prefix.is_none() {
             bail!("Argument name is missing");
         }
 
@@ -173,6 +188,9 @@ impl<'p> ArgBuilder<'p> {
         }
         if let Some(short_name) = self.short_name {
             self.parser.short_args.insert(short_name, arg);
+        }
+        if let Some(name_prefix) = self.name_prefix {
+            self.parser.arg_prefixes.insert(name_prefix, arg);
         }
 
         Ok(())
@@ -196,6 +214,7 @@ impl ArgParser {
             parser: self,
             long_name: None,
             short_name: None,
+            name_prefix: None,
             separator: None,
             args_field: None,
             unstripped: false,
@@ -278,6 +297,7 @@ impl ArgParser {
                     next_arg = args_iter.next();
                     Some((arg, next_arg.unwrap()))
                 } else if !is_long {
+                    let arg_map = &self.arg_prefixes;
                     arg_map
                         .iter()
                         .find_map(|(&key, arg)| stripped.strip_prefix(key).map(|val| (arg, val)))
