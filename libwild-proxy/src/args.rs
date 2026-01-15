@@ -711,7 +711,7 @@ fn setup_parser() -> Result<ArgParser> {
     parser
         .declare_flag()
         .long("profile")
-        .short("-pg")
+        .short("pg")
         .bind(|args| FlagValue::Single(&mut args.profile))
         .build()?;
 
@@ -1143,6 +1143,15 @@ mod tests {
         let mut parser = setup_parser().unwrap();
         assert!(!parser.args.profile);
         parser.parse(&["--profile"]);
+        assert!(parser.args.profile);
+        assert!(parser.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn pg_parsing() {
+        let mut parser = setup_parser().unwrap();
+        assert!(!parser.args.profile);
+        parser.parse(&["-pg"]);
         assert!(parser.args.profile);
         assert!(parser.unknown_args.is_empty());
     }
