@@ -28,9 +28,7 @@ pub fn fallback() -> Result<()> {
     let compiler_path = find_next_executable(&zero_position_path)?;
     let mut compiler_command = Command::new(&compiler_path);
 
-    if args.iter().any(|arg| arg == "--pipe") {
-        bail!("--pipe is not supported yet");
-    }
+    let piped = args.iter().any(|arg| arg == "-pipe");
 
     if args.iter().any(|arg| {
         ["--help", "--version", "-###", "-c", "-S"].contains(&arg.as_str())
@@ -66,7 +64,14 @@ pub fn fallback() -> Result<()> {
 
     let commands = obtain_whole_command(raw_dump.lines())
         .with_context(|| format!("Invocation args: {args:?}"))?;
-    let mut steps_iterator = commands.build_and_assemble.into_iter().peekable();
+    let shell_cmd;
+    let build_and_assemble_commands = if piped {
+        shell_cmd = format!("sh -c \"{}\"", commands.build_and_assemble.join(" "));
+        vec![shell_cmd.as_str()]
+    } else {
+        commands.build_and_assemble
+    };
+    let mut steps_iterator = build_and_assemble_commands.into_iter().peekable();
     while let Some(command) = steps_iterator.next() {
         let args = shell_words::split(command)?;
         let exit_status = Command::new(args.first().unwrap())

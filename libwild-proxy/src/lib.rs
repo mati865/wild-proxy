@@ -19,14 +19,6 @@ pub fn process(args: &[&str], zero_position_arg: &str, binary_name: &str) -> Res
     }
 
     let zero_position_path = Path::new(zero_position_arg);
-    // let args = args
-    //     .into_iter()
-    //     .copied()
-    //     .filter(|s| !s.starts_with("-fuse-ld="))
-    //     .collect::<Vec<_>>();
-    if args.iter().any(|arg| *arg == "--pipe") {
-        bail!("--pipe is not supported yet");
-    }
 
     let executable_name: String = zero_position_path
         .file_stem()
@@ -84,7 +76,7 @@ pub fn process(args: &[&str], zero_position_arg: &str, binary_name: &str) -> Res
             link::link(&parsed_args, cpp_mode)?;
         }
         Mode::CompileAndLink => {
-            dbg!(&parsed_args);
+            eprintln!("warn: using fallback");
             return fallback::fallback();
         }
         Mode::None => {

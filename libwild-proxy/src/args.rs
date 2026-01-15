@@ -767,6 +767,14 @@ fn setup_parser() -> Result<ArgParser> {
         .build()?;
 
     parser
+        .declare_flag()
+        .long("pipe")
+        .short("pipe")
+        .bind(|args| FlagValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
         .declare_arg()
         .short("o")
         .prefix("o")
@@ -1364,6 +1372,15 @@ mod tests {
                 "-MV",
             ]
         );
+        assert!(parser.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn pipe_parsing() {
+        let mut parser = setup_parser().unwrap();
+        let args = ["-pipe", "--pipe"];
+        parser.parse(&args);
+        assert_eq!(parser.args.compiler_args, args);
         assert!(parser.unknown_args.is_empty());
     }
 }
