@@ -66,17 +66,21 @@ pub fn fallback() -> Result<()> {
         .with_context(|| format!("Invocation args: {args:?}"))?;
     let shell_cmd;
     let build_and_assemble_commands = if piped {
-        shell_cmd = format!("sh -c \"{}\"", commands.build_and_assemble.join(" "));
+        shell_cmd = commands.build_and_assemble.join(" ");
         vec![shell_cmd.as_str()]
     } else {
         commands.build_and_assemble
     };
     let mut steps_iterator = build_and_assemble_commands.into_iter().peekable();
     while let Some(command) = steps_iterator.next() {
-        let args = shell_words::split(command)?;
-        let exit_status = Command::new(args.first().unwrap())
-            .args(&args[1..])
-            .status()?;
+        let split_up_args = shell_words::split(command)?;
+        let exit_status = if piped {
+            Command::new("sh").arg("-c").arg(command).status()?
+        } else {
+            Command::new(split_up_args.first().unwrap())
+                .args(&split_up_args[1..])
+                .status()?
+        };
 
         if !exit_status.success() {
             if let Some(code) = exit_status.code() {
@@ -88,9 +92,9 @@ pub fn fallback() -> Result<()> {
 
         // Add output files from intermediate steps to clean up.
         if steps_iterator.peek().is_some() || commands.link.is_some() {
-            let mut args_iter = args.windows(2);
-            if let Some(arg) =
-                args_iter.find_map(|window| (window[0] == "-o").then_some(&window[1]))
+            let mut args_iter = (&split_up_args).windows(2);
+            if let Some(arg) = args_iter
+                .find_map(|window| (&window[0] == "-o" && window[1] != "-").then_some(&window[1]))
             {
                 files_to_delete.add_output(PathBuf::from(arg));
             }
