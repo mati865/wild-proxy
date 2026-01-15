@@ -295,7 +295,12 @@ impl ArgParser {
                 let arg = arg_map.get(stripped);
                 if let Some(arg) = arg {
                     next_arg = args_iter.next();
-                    Some((arg, next_arg.unwrap()))
+                    Some((
+                        arg,
+                        next_arg.unwrap_or_else(|| {
+                            panic!("Argument {} is missing the value", stripped)
+                        }),
+                    ))
                 } else if !is_long {
                     let arg_map = &self.arg_prefixes;
                     arg_map
