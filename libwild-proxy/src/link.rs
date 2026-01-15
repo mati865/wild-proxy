@@ -192,6 +192,10 @@ pub(crate) fn build_link_args(args: &Args, cpp_mode: bool) -> Result<Vec<String>
         vec![]
     };
     final_linker_args.extend(builtin_args1.iter().map(ToString::to_string));
+    if args.rdynamic {
+        // TODO: add test
+        final_linker_args.push("--export-dynamic".to_string());
+    }
     final_linker_args.extend(output_kind_args.iter().map(ToString::to_string));
     final_linker_args.extend(["-o".to_string(), args.output.to_string()]);
 

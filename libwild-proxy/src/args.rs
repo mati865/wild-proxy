@@ -566,6 +566,7 @@ pub(crate) struct Args {
     pub(crate) verbose: bool,
     pub(crate) version: bool,
     pub(crate) fuse_ld: Option<String>,
+    pub(crate) rdynamic: bool,
 }
 
 impl Default for Args {
@@ -601,6 +602,7 @@ impl Default for Args {
             verbose: false,
             version: false,
             fuse_ld: None,
+            rdynamic: false,
         }
     }
 }
@@ -752,6 +754,12 @@ fn setup_parser() -> Result<ArgParser> {
 
     parser
         .declare_flag()
+        .short("rdynamic")
+        .bind(|args| FlagValue::Single(&mut args.rdynamic))
+        .build()?;
+
+    parser
+        .declare_flag()
         .short("E")
         .bind(|args| FlagValue::Multi(&mut args.compiler_args))
         .raw()
@@ -796,6 +804,22 @@ fn setup_parser() -> Result<ArgParser> {
     parser
         .declare_flag()
         .short("")
+        .bind(|args| FlagValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_flag()
+        .long("comments")
+        .short("C")
+        .bind(|args| FlagValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_flag()
+        .long("comments-in-macros")
+        .short("CC")
         .bind(|args| FlagValue::Multi(&mut args.compiler_args))
         .raw()
         .build()?;
@@ -1504,5 +1528,22 @@ mod tests {
         parser.parse(&args);
         assert_eq!(parser.args.compiler_args, args);
         assert!(parser.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn rdynamic_parsing() {
+        let mut parser = setup_parser().unwrap();
+        assert!(!parser.args.rdynamic);
+        parser.parse(&["-rdynamic"]);
+        assert!(parser.args.rdynamic);
+        assert!(parser.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn comments_parsing() {
+        let mut parser = setup_parser().unwrap();
+        let args = ["-C", "-CC", "--comments", "--comments-in-macros"];
+        parser.parse(&args);
+        assert_eq!(parser.args.compiler_args, args);
     }
 }
