@@ -782,6 +782,13 @@ fn setup_parser() -> Result<ArgParser> {
         .build()?;
 
     parser
+        .declare_flag()
+        .short("P")
+        .bind(|args| FlagValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
         .declare_arg()
         .short("o")
         .prefix("o")
@@ -1397,6 +1404,15 @@ mod tests {
     fn g_parsing() {
         let mut parser = setup_parser().unwrap();
         let args = ["-g"];
+        parser.parse(&args);
+        assert_eq!(parser.args.compiler_args, args);
+        assert!(parser.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn p_parsing() {
+        let mut parser = setup_parser().unwrap();
+        let args = ["-P"];
         parser.parse(&args);
         assert_eq!(parser.args.compiler_args, args);
         assert!(parser.unknown_args.is_empty());
