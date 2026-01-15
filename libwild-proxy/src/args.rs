@@ -622,7 +622,7 @@ impl Args {
                 args.arch = target;
             }
 
-            if args.dont_assemble || args.dont_link {
+            if args.dont_assemble || args.dont_link || args.language.is_some() {
                 args.mode = Mode::CompileOnly;
             } else if !args.sources.is_empty() {
                 args.mode = Mode::CompileAndLink
