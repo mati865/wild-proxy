@@ -65,14 +65,13 @@ pub fn fallback() -> Result<()> {
     let commands = obtain_whole_command(raw_dump.lines())
         .with_context(|| format!("Invocation args: {args:?}"))?;
     let shell_cmds;
-    let build_and_assemble_commands = if piped {
+    let build_and_assemble_commands = if piped && commands.build_and_assemble.len() > 1 {
         shell_cmds = commands
             .build_and_assemble
             .chunks(2)
             .map(|commands| {
-                // When piping, we need to merge two parts of the command into one. Also make sure
-                // it ends with '|'.
-                assert_eq!(commands.len(), 2);
+                // When piping, we need to merge two parts of the command into one if the first one
+                // ends with '|'.
                 assert!(
                     commands[0].ends_with('|'),
                     "Expected command to end with '|', but got: '{}'",
