@@ -841,6 +841,13 @@ fn setup_parser() -> Result<ArgParser> {
         .raw()
         .build()?;
 
+    parser
+        .declare_flag()
+        .short("w")
+        .bind(|args| FlagValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
     // TODO: properly handle (not just forward) all `--print-*` args
     parser
         .declare_flag()
@@ -917,6 +924,14 @@ fn setup_parser() -> Result<ArgParser> {
 
     parser
         .declare_arg()
+        .short("U")
+        .prefix("U")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
         .short("MF")
         .bind(|args| ArgValue::Multi(&mut args.compiler_args))
         .raw()
@@ -960,6 +975,7 @@ fn setup_parser() -> Result<ArgParser> {
     parser
         .declare_arg()
         .short("std")
+        .long("std")
         .bind(|args| ArgValue::Multi(&mut args.compiler_args))
         .raw()
         .build()?;
@@ -1205,6 +1221,8 @@ mod tests {
             "-pedantic",
             "--pedantic",
             "-E",
+            "-w",
+            "--std=gnu++17",
         ];
         parser.parse(&args);
         assert_eq!(parser.args.compiler_args, args);
@@ -1590,5 +1608,13 @@ mod tests {
         assert!(!parser.args.nostdlibxx);
         parser.parse(&["-nostdlib++"]);
         assert!(parser.args.nostdlibxx);
+    }
+
+    #[test]
+    fn parsing_u() {
+        let mut parser = setup_parser().unwrap();
+        let args = ["-UFOO", "-UFOO=BAR", "-U", "BAZ"];
+        parser.parse(&args);
+        assert_eq!(parser.args.compiler_args, args);
     }
 }
