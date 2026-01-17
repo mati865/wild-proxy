@@ -64,22 +64,17 @@ pub fn fallback() -> Result<()> {
 
     let commands = obtain_whole_command(raw_dump.lines())
         .with_context(|| format!("Invocation args: {args:?}"))?;
-    let shell_cmds;
-    let build_and_assemble_commands = if piped && commands.build_and_assemble.len() > 1 {
-        shell_cmds = commands
-            .build_and_assemble
-            .chunks(2)
-            .map(|commands| {
-                // When piping, we need to merge two parts of the command into one if the first one
-                // ends with '|'.
-                assert!(
-                    commands[0].ends_with('|'),
-                    "Expected command to end with '|', but got: '{}'",
-                    commands[0].chars().last().unwrap()
-                );
-                [commands[0], " ", commands[1]].concat()
-            })
-            .collect::<Vec<_>>();
+    let mut shell_cmds;
+    let build_and_assemble_commands = if piped {
+        shell_cmds = Vec::with_capacity(commands.build_and_assemble.len());
+        let mut commands_iter = commands.build_and_assemble.into_iter();
+        while let Some(cmd) = commands_iter.next() {
+            if cmd.ends_with("|") {
+                shell_cmds.push([cmd, " ", commands_iter.next().unwrap()].concat());
+            } else {
+                shell_cmds.push(cmd.to_string())
+            }
+        }
         shell_cmds.iter().map(AsRef::as_ref).collect::<Vec<_>>()
     } else {
         commands.build_and_assemble
@@ -548,6 +543,33 @@ COLLECT_GCC_OPTIONS='-O2' '-pipe' '-std=c90' '-Wall' '-I' 'include' '-I' 'src' '
             link: Some(
                 "/usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/collect2 -plugin /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/liblto_plugin.so \"-plugin-opt=/usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/lto-wrapper\" \"-plugin-opt=-fresolution=/tmp/ccZHsaAV.res\" \"-plugin-opt=-pass-through=-lgcc\" \"-plugin-opt=-pass-through=-lgcc_s\" \"-plugin-opt=-pass-through=-lpthread\" \"-plugin-opt=-pass-through=-lc\" \"-plugin-opt=-pass-through=-lgcc\" \"-plugin-opt=-pass-through=-lgcc_s\" --build-id --eh-frame-hdr \"--hash-style=gnu\" -m elf_x86_64 -shared -o libargon2.so.1 /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../lib/crti.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtbeginS.o -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1 -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../lib -L/lib/../lib -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/../../.. -L/lib -L/usr/lib -O1 --as-needed -z pack-relative-relocs -soname libargon2.so.1 /tmp/cceK59al.o /tmp/ccZLkOFw.o /tmp/ccrfiVT2.o /tmp/ccGvi9UI.o /tmp/cc7D3pWJ.o /tmp/ccTrOwmk.o -lgcc --push-state --as-needed -lgcc_s --pop-state -lpthread -lc -lgcc --push-state --as-needed -lgcc_s --pop-state /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtendS.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../lib/crtn.o",
             ),
+        };
+        assert_eq!(expected, obtain_whole_command(input.lines()).unwrap());
+    }
+
+    #[test]
+    fn parse_gcc_piped2() {
+        let input = r#"
+Using built-in specs.
+COLLECT_GCC=gcc
+COLLECT_LTO_WRAPPER=/usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/lto-wrapper
+Target: x86_64-pc-linux-gnu
+Configured with: /tmp/pkg/src/gcc/configure --enable-languages=ada,c,c++,d,fortran,go,lto,m2,objc,obj-c++,rust,cobol --enable-bootstrap --prefix=/usr --libdir=/usr/lib --libexecdir=/usr/lib --mandir=/usr/share/man --infodir=/usr/share/info --with-bugurl=https://github.com/CachyOS/CachyOS-PKGBUILDS/issues --with-build-config=bootstrap-lto --with-linker-hash-style=gnu --with-system-zlib --enable-__cxa_atexit --enable-cet=auto --enable-checking=release --enable-clocale=gnu --enable-default-pie --enable-default-ssp --enable-gnu-indirect-function --enable-gnu-unique-object --enable-libstdcxx-backtrace --enable-link-serialization=1 --enable-linker-build-id --enable-lto --enable-multilib --enable-plugin --enable-shared --enable-threads=posix --disable-libssp --disable-libstdcxx-pch --disable-werror
+Thread model: posix
+Supported LTO compression algorithms: zlib zstd
+gcc version 15.2.1 20260103 (GCC)
+COLLECT_GCC_OPTIONS='-pipe' '-M' '-mtune=generic' '-march=x86-64' '-dumpdir' 'a-'
+ /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/cc1 -E -quiet -M test.c "-mtune=generic" "-march=x86-64" -dumpdir a- -dumpbase test.c -dumpbase-ext .c
+COMPILER_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/
+LIBRARY_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../lib/:/lib/../lib/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-pipe' '-M' '-mtune=generic' '-march=x86-64' '-dumpdir' 'a.'
+"#;
+
+        let expected = Commands {
+            build_and_assemble: vec![
+                r#"/usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/cc1 -E -quiet -M test.c "-mtune=generic" "-march=x86-64" -dumpdir a- -dumpbase test.c -dumpbase-ext .c"#,
+            ],
+            link: None,
         };
         assert_eq!(expected, obtain_whole_command(input.lines()).unwrap());
     }
