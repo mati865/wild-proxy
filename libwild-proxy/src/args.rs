@@ -558,6 +558,7 @@ pub(crate) struct Args {
     language: Option<String>,
     dont_assemble: bool,
     dont_link: bool,
+    preprocess_only: bool,
     pub(crate) output: String,
     pub(crate) output_kind: OutputKind,
     pub(crate) mode: Mode,
@@ -596,6 +597,7 @@ impl Default for Args {
             language: None,
             dont_assemble: false,
             dont_link: false,
+            preprocess_only: false,
             output: "a.out".to_string(),
             output_kind: Default::default(),
             mode: Default::default(),
@@ -628,7 +630,11 @@ impl Args {
                 args.arch = target;
             }
 
-            if args.dont_assemble || args.dont_link || args.language.is_some() {
+            if args.dont_assemble
+                || args.dont_link
+                || args.language.is_some()
+                || args.preprocess_only
+            {
                 args.mode = Mode::CompileOnly;
             } else if !args.sources.is_empty() {
                 args.mode = Mode::CompileAndLink
@@ -746,6 +752,12 @@ fn setup_parser() -> Result<ArgParser> {
 
     parser
         .declare_flag()
+        .short("E")
+        .bind(|args| FlagValue::Single(&mut args.preprocess_only))
+        .build()?;
+
+    parser
+        .declare_flag()
         .long("help")
         .bind(|args| FlagValue::Single(&mut args.help))
         .build()?;
@@ -773,13 +785,6 @@ fn setup_parser() -> Result<ArgParser> {
         .declare_flag()
         .short("rdynamic")
         .bind(|args| FlagValue::Single(&mut args.rdynamic))
-        .build()?;
-
-    parser
-        .declare_flag()
-        .short("E")
-        .bind(|args| FlagValue::Multi(&mut args.compiler_args))
-        .raw()
         .build()?;
 
     parser
@@ -1220,7 +1225,6 @@ mod tests {
             "-fPIC",
             "-pedantic",
             "--pedantic",
-            "-E",
             "-w",
             "--std=gnu++17",
         ];
@@ -1344,6 +1348,15 @@ mod tests {
         assert!(!parser.args.dont_link);
         parser.parse(&["-c"]);
         assert!(parser.args.dont_link);
+        assert!(parser.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn preprocess_only_parsing() {
+        let mut parser = setup_parser().unwrap();
+        assert!(!parser.args.preprocess_only);
+        parser.parse(&["-E"]);
+        assert!(parser.args.preprocess_only);
         assert!(parser.unknown_args.is_empty());
     }
 
