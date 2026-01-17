@@ -547,9 +547,11 @@ pub(crate) struct Args {
     pub(crate) raw_linker_args: Vec<String>,
     pub(crate) additional_search_paths: Vec<String>,
     compiler_args: Vec<String>,
-    pub(crate) nodefaultlibs: bool,
     pub(crate) nostartfiles: bool,
+    pub(crate) nodefaultlibs: bool,
+    pub(crate) nolibc: bool,
     pub(crate) nostdlib: bool,
+    pub(crate) nostdlibxx: bool,
     pub(crate) coverage: bool,
     pub(crate) profile: bool,
     target: Option<String>,
@@ -583,9 +585,11 @@ impl Default for Args {
             additional_search_paths: Vec::new(),
             raw_linker_args: vec![],
             compiler_args: vec![],
-            nodefaultlibs: false,
             nostartfiles: false,
+            nodefaultlibs: false,
+            nolibc: false,
             nostdlib: false,
+            nostdlibxx: false,
             coverage: false,
             profile: false,
             target: None,
@@ -685,20 +689,33 @@ fn setup_parser() -> Result<ArgParser> {
 
     parser
         .declare_flag()
+        .short("nostartfiles")
+        .bind(|args| FlagValue::Single(&mut args.nostartfiles))
+        .build()?;
+
+    parser
+        .declare_flag()
         .short("nodefaultlibs")
         .bind(|args| FlagValue::Single(&mut args.nodefaultlibs))
         .build()?;
 
     parser
         .declare_flag()
-        .long("nostartfiles")
-        .bind(|args| FlagValue::Single(&mut args.nostartfiles))
+        .short("nolibc")
+        .bind(|args| FlagValue::Single(&mut args.nolibc))
         .build()?;
 
     parser
         .declare_flag()
-        .long("nostdlib")
+        .long("no-standard-libraries")
+        .short("nostdlib")
         .bind(|args| FlagValue::Single(&mut args.nostdlib))
+        .build()?;
+
+    parser
+        .declare_flag()
+        .short("nostdlib++")
+        .bind(|args| FlagValue::Single(&mut args.nostdlibxx))
         .build()?;
 
     parser
@@ -1545,5 +1562,33 @@ mod tests {
         let args = ["-C", "-CC", "--comments", "--comments-in-macros"];
         parser.parse(&args);
         assert_eq!(parser.args.compiler_args, args);
+    }
+
+    #[test]
+    fn parsing_disabling_libs() {
+        let mut parser = setup_parser().unwrap();
+        assert!(!parser.args.nostartfiles);
+        parser.parse(&["-nostartfiles"]);
+        assert!(parser.args.nostartfiles);
+        let mut parser = setup_parser().unwrap();
+        assert!(!parser.args.nodefaultlibs);
+        parser.parse(&["-nodefaultlibs"]);
+        assert!(parser.args.nodefaultlibs);
+        let mut parser = setup_parser().unwrap();
+        assert!(!parser.args.nolibc);
+        parser.parse(&["-nolibc"]);
+        assert!(parser.args.nolibc);
+        let mut parser = setup_parser().unwrap();
+        assert!(!parser.args.nostdlib);
+        parser.parse(&["-nostdlib"]);
+        assert!(parser.args.nostdlib);
+        let mut parser = setup_parser().unwrap();
+        assert!(!parser.args.nostdlib);
+        parser.parse(&["--no-standard-libraries"]);
+        assert!(parser.args.nostdlib);
+        let mut parser = setup_parser().unwrap();
+        assert!(!parser.args.nostdlibxx);
+        parser.parse(&["-nostdlib++"]);
+        assert!(parser.args.nostdlibxx);
     }
 }

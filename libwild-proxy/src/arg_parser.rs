@@ -230,8 +230,8 @@ impl ArgParser {
             return false;
         };
 
-        let (flag_name, value) = if let Some(negated) = stripped.strip_prefix("no-") {
-            (negated, false)
+        let (flag_name, value) = if let Some(without_negation) = stripped.strip_prefix("no-") {
+            (without_negation, false)
         } else {
             (stripped, true)
         };
@@ -242,22 +242,31 @@ impl ArgParser {
             &self.short_flags
         };
 
-        if let Some(flag) = flag_map.get(flag_name) {
-            match (flag.args_field)(&mut self.args) {
-                FlagValue::Single(single_value) => {
-                    if value || flag.supports_negation {
-                        *single_value = value;
-                        return true;
-                    }
-                }
-                FlagValue::Multi(multi_value) => {
-                    if flag.unstripped {
-                        multi_value.push(raw_arg.to_string());
-                    } else {
-                        multi_value.push(flag_name.to_string());
-                    }
+        // Some flags support negation, in which case we try to find it without negation first.
+        // Flags can also have negation as part of their name, so as a second step we try to find
+        // them by the full name.
+        let (flag, value) = if let Some(flag) = flag_map.get(flag_name) {
+            (flag, value)
+        } else if let Some(flag) = flag_map.get(stripped) {
+            (flag, true)
+        } else {
+            return false;
+        };
+
+        match (flag.args_field)(&mut self.args) {
+            FlagValue::Single(single_value) => {
+                if value || flag.supports_negation {
+                    *single_value = value;
                     return true;
                 }
+            }
+            FlagValue::Multi(multi_value) => {
+                if flag.unstripped {
+                    multi_value.push(raw_arg.to_string());
+                } else {
+                    multi_value.push(stripped.to_string());
+                }
+                return true;
             }
         }
 

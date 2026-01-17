@@ -176,8 +176,6 @@ pub(crate) fn build_link_args(args: &Args, cpp_mode: bool) -> Result<Vec<String>
         "-m",
         args.arch.emulation(),
     ];
-    let static_system_libs = ["-lgcc", "-lgcc_eh", "-lc"];
-    let shared_system_libs = ["-lgcc", "--as-needed", "-lgcc_s", "--no-as-needed", "-lc"];
     let output_kind_args: &[&str] = match args.output_kind {
         OutputKind::DynamicPie => &["-pie", "--dynamic-linker", args.arch.dynamic_linker()],
         OutputKind::StaticPie => &["-static", "-pie"],
@@ -204,8 +202,10 @@ pub(crate) fn build_link_args(args: &Args, cpp_mode: bool) -> Result<Vec<String>
     if let Some(crt1) = system_library_paths.crt1 {
         final_linker_args.push(crt1.display().to_string());
     }
-    final_linker_args.push(system_library_paths.crti.display().to_string());
-    final_linker_args.push(gcc_objects.begin_object.display().to_string());
+    if !args.nostdlib {
+        final_linker_args.push(system_library_paths.crti.display().to_string());
+        final_linker_args.push(gcc_objects.begin_object.display().to_string());
+    }
     final_linker_args.extend(
         args.additional_search_paths
             .iter()
@@ -216,7 +216,7 @@ pub(crate) fn build_link_args(args: &Args, cpp_mode: bool) -> Result<Vec<String>
         final_linker_args.push(format!("-L{}", path));
     }
     final_linker_args.extend(args.raw_linker_args.clone().into_iter());
-    if !args.nodefaultlibs {
+    if !args.nodefaultlibs && !args.nostdlib && !args.nostdlibxx {
         if cpp_mode {
             final_linker_args.extend(["-lstdc++".to_string(), "-lm".to_string()]);
         }
@@ -224,18 +224,31 @@ pub(crate) fn build_link_args(args: &Args, cpp_mode: bool) -> Result<Vec<String>
     if args.coverage {
         final_linker_args.push("-lgcov".to_string());
     }
-    if !args.nodefaultlibs {
-        if args.output_kind == OutputKind::Static || args.output_kind == OutputKind::StaticPie {
-            final_linker_args.extend(static_system_libs.iter().map(ToString::to_string));
+    if !args.nodefaultlibs && !args.nostdlib {
+        let system_libs = if args.output_kind == OutputKind::Static
+            || args.output_kind == OutputKind::StaticPie
+        {
+            let mut system_libs = vec!["-lgcc", "-lgcc_eh"];
+            if !args.nolibc {
+                system_libs.push("-lc")
+            }
+            system_libs
         } else {
-            final_linker_args.extend(shared_system_libs.iter().map(ToString::to_string));
-        }
+            let mut system_libs = vec!["-lgcc", "--as-needed", "-lgcc_s"];
+            if !args.nolibc {
+                system_libs.extend(&["--no-as-needed", "-lc"])
+            }
+            system_libs
+        };
+        final_linker_args.extend(system_libs.iter().map(ToString::to_string));
     }
     if args.pthread {
         final_linker_args.push("-lpthread".to_string());
     }
-    final_linker_args.push(gcc_objects.end_object.display().to_string());
-    final_linker_args.push(system_library_paths.crtn.display().to_string());
+    if !args.nostartfiles && !args.nostdlib {
+        final_linker_args.push(gcc_objects.end_object.display().to_string());
+        final_linker_args.push(system_library_paths.crtn.display().to_string());
+    }
     final_linker_args.extend(
         args.scripts
             .iter()
