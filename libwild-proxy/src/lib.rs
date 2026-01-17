@@ -73,7 +73,9 @@ pub fn process(args: &[&str], zero_position_arg: &str, binary_name: &str) -> Res
             );
         }
         Mode::LinkOnly => {
-            link::link(&parsed_args, cpp_mode)?;
+            if !parsed_args.version {
+                link::link(&parsed_args, cpp_mode)?;
+            }
         }
         Mode::CompileAndLink => {
             return fallback::fallback();
