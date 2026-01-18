@@ -15,10 +15,6 @@ mod link;
 mod outputs_cleanup;
 
 pub fn process(original_args: &[&str], zero_position_arg: &str, binary_name: &str) -> Result<()> {
-    if args.is_empty() {
-        bail!("no input files")
-    }
-
     let zero_position_path = Path::new(zero_position_arg);
 
     let executable_name: String = zero_position_path
@@ -87,11 +83,13 @@ pub fn process(original_args: &[&str], zero_position_arg: &str, binary_name: &st
     }
 
     if parsed_args.hash_hash_hash || parsed_args.verbose || parsed_args.version {
-        eprintln!(
+        println!(
             "{} version {}",
             env!("CARGO_PKG_NAME"),
             env!("CARGO_PKG_VERSION")
         );
+    } else if parsed_args.mode == Mode::None {
+        bail!("no input files")
     }
 
     if let Some(fuse_ld) = &parsed_args.fuse_ld {
