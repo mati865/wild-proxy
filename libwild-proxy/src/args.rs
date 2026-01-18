@@ -1631,3 +1631,6 @@ mod tests {
         assert_eq!(parser.args.compiler_args, args);
     }
 }
+
+// -static-libgcc -shared-libgcc
+// incomplete GCC: https://github.com/rust-lang/simpleinfra/issues/904

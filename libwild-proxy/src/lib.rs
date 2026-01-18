@@ -1,6 +1,7 @@
 use crate::{arch::target_arch, args::Mode};
 use anyhow::{Context, Result, bail};
 use std::{
+    io::Read,
     os::unix::{fs::PermissionsExt, process::CommandExt},
     path::{Path, PathBuf},
     process::Command,
@@ -13,7 +14,7 @@ pub mod fallback;
 mod link;
 mod outputs_cleanup;
 
-pub fn process(args: &[&str], zero_position_arg: &str, binary_name: &str) -> Result<()> {
+pub fn process(original_args: &[&str], zero_position_arg: &str, binary_name: &str) -> Result<()> {
     if args.is_empty() {
         bail!("no input files")
     }
@@ -43,6 +44,42 @@ pub fn process(args: &[&str], zero_position_arg: &str, binary_name: &str) -> Res
         target = None;
     };
 
+    // TODO: Add test
+    let mut response_files_contents = Vec::new();
+    for arg in original_args {
+        if arg.starts_with("@") {
+            let filename = &arg[1..];
+            let mut file = std::fs::File::open(filename)
+                .with_context(|| format!("Could not open response file {filename}"))?;
+            let mut contents = String::new();
+            file.read_to_string(&mut contents)
+                .with_context(|| format!("Could not read response file {filename}"))?;
+            let split_args = shell_words::split(contents.as_str())?;
+            response_files_contents.push(split_args);
+        }
+    }
+    let mut response_files_contents_iter = response_files_contents.iter();
+    let mut args = Vec::with_capacity(
+        original_args.len()
+            + response_files_contents
+                .iter()
+                .map(Vec::len)
+                .reduce(|acc, e| acc + e)
+                .unwrap_or(0),
+    );
+    for arg in original_args {
+        if arg.starts_with("@") {
+            let new_args = response_files_contents_iter
+                .next()
+                .unwrap()
+                .iter()
+                .map(|arg| arg.as_str());
+            args.extend(new_args);
+        } else {
+            args.push(arg);
+        }
+    }
+
     let parsed_args = args::Args::parse_args(&args, target)?;
 
     if parsed_args.help {
@@ -65,7 +102,7 @@ pub fn process(args: &[&str], zero_position_arg: &str, binary_name: &str) -> Res
         Mode::CompileOnly => {
             let compiler_path = find_next_executable(&zero_position_path)?;
             let mut compiler_command = Command::new(&compiler_path);
-            let err = compiler_command.args(&*args).exec();
+            let err = compiler_command.args(original_args).exec();
             bail!(
                 "Failed to exec compiler {}: {}",
                 compiler_path.display(),
