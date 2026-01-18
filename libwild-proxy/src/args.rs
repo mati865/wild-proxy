@@ -1009,70 +1009,88 @@ fn setup_parser() -> Result<ArgParser> {
 
     parser
         .declare_arg()
-        .short("idirafter")
+        .long("idirafter")
+        .short_or_prefix("idirafter")
         .bind(|args| ArgValue::Multi(&mut args.compiler_args))
         .raw()
         .build()?;
 
     parser
         .declare_arg()
-        .short("imacros")
+        .long("imacros")
+        .short_or_prefix("imacros")
         .bind(|args| ArgValue::Multi(&mut args.compiler_args))
         .raw()
         .build()?;
 
     parser
         .declare_arg()
-        .short("imultilib")
+        .long("imultilib")
+        .short_or_prefix("imultilib")
         .bind(|args| ArgValue::Multi(&mut args.compiler_args))
         .raw()
         .build()?;
 
     parser
         .declare_arg()
+        .long("include")
+        .short_or_prefix("include")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .long("iprefix")
+        .short_or_prefix("iprefix")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .long("iquote")
+        .short_or_prefix("iquote")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .long("isysroot")
+        .short_or_prefix("isysroot")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .long("isystem")
+        .short_or_prefix("isystem")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .long("iwithprefix")
+        .short_or_prefix("iwithprefix")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .long("iwithprefixbefore")
+        .short_or_prefix("iwithprefixbefore")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .long("include")
         .short("include")
-        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
-        .raw()
-        .build()?;
-
-    parser
-        .declare_arg()
-        .short("iprefix")
-        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
-        .raw()
-        .build()?;
-
-    parser
-        .declare_arg()
-        .short("iquote")
-        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
-        .raw()
-        .build()?;
-
-    parser
-        .declare_arg()
-        .short("isysroot")
-        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
-        .raw()
-        .build()?;
-
-    parser
-        .declare_arg()
-        .short("isystem")
-        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
-        .raw()
-        .build()?;
-
-    parser
-        .declare_arg()
-        .short("iwithprefix")
-        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
-        .raw()
-        .build()?;
-
-    parser
-        .declare_arg()
-        .short("iwithprefixbefore")
         .bind(|args| ArgValue::Multi(&mut args.compiler_args))
         .raw()
         .build()?;
@@ -1443,33 +1461,43 @@ mod tests {
             "-idirafter",
             "/foo",
             "-idirafter=/bar",
+            "--idirafter/baz",
             "-imacros",
             "foo.h",
             "-imacros=bar.h",
+            "-imacrosbaz.h",
             "-imultilib",
             "lib",
             "-imultilib=lib64",
+            "--imultiliblib32",
             "-include",
             "foo.h",
             "-include=bar.h",
+            "--includebar.h",
             "-iprefix",
             "/usr",
             "-iprefix=/opt",
+            "--iprefix/opt",
             "-iquote",
             "/foo",
             "-iquote=/bar",
+            "--iquote/bar",
             "-isysroot",
             "/sysroot",
             "-isysroot=/newsysroot",
+            "--isysroot/newsysroot",
             "-isystem",
             "/usr/include",
             "-isystem=/opt/include",
+            "--isystem/opt/include",
             "-iwithprefix",
             "include",
             "-iwithprefix=local",
+            "--iwithprefixlocal",
             "-iwithprefixbefore",
             "include",
             "-iwithprefixbefore=local",
+            "--iwithprefixbeforelocal",
         ];
         parser.parse(&args);
         assert_eq!(parser.args.compiler_args, args);

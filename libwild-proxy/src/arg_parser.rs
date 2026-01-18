@@ -310,13 +310,11 @@ impl ArgParser {
                             panic!("Argument {} is missing the value", stripped)
                         }),
                     ))
-                } else if !is_long {
+                } else {
                     let arg_map = &self.arg_prefixes;
                     arg_map
                         .iter()
                         .find_map(|(&key, arg)| stripped.strip_prefix(key).map(|val| (arg, val)))
-                } else {
-                    None
                 }
             });
 
