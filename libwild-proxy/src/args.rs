@@ -1628,6 +1628,7 @@ mod tests {
         let args = ["-C", "-CC", "--comments", "--comments-in-macros"];
         parser.parse(&args);
         assert_eq!(parser.args.compiler_args, args);
+        assert!(parser.unknown_args.is_empty());
     }
 
     #[test]
@@ -1664,6 +1665,7 @@ mod tests {
         let args = ["-UFOO", "-UFOO=BAR", "-U", "BAZ"];
         parser.parse(&args);
         assert_eq!(parser.args.compiler_args, args);
+        assert!(parser.unknown_args.is_empty());
     }
 
     #[test]
