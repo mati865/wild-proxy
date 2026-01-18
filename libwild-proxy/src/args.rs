@@ -922,6 +922,13 @@ fn setup_parser() -> Result<ArgParser> {
 
     parser
         .declare_arg()
+        .prefix("g")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
         .prefix("M")
         .bind(|args| ArgValue::Multi(&mut args.compiler_args))
         .raw()
@@ -1629,6 +1636,15 @@ mod tests {
         let args = ["-UFOO", "-UFOO=BAR", "-U", "BAZ"];
         parser.parse(&args);
         assert_eq!(parser.args.compiler_args, args);
+    }
+
+    #[test]
+    fn g_prefix_parsing() {
+        let mut parser = setup_parser().unwrap();
+        let args = ["-g0", "-gdwarf-5"];
+        parser.parse(&args);
+        assert_eq!(parser.args.compiler_args, args);
+        assert!(parser.unknown_args.is_empty());
     }
 }
 
