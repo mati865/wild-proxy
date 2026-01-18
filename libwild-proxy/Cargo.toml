@@ -8,10 +8,9 @@ edition.workspace = true
 
 [dependencies]
 anyhow = "1.0"
-libwild = { version = "0.7.0", features = ["fork"] }
+libwild = { version = "0.8.0", features = ["fork"] }
 shell-words = "1.1.0"
 tracing = "0.1"
-semver = "1.0.27"
 
 [dev-dependencies]
 pretty_assertions = "1"
