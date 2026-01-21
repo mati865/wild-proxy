@@ -571,6 +571,9 @@ pub(crate) struct Args {
     pub(crate) fuse_ld: Option<String>,
     pub(crate) rdynamic: bool,
     pub(crate) cpp_mode: bool,
+    dump_machine: bool,
+    dump_specs: bool,
+    dump_version: bool,
 }
 
 impl Default for Args {
@@ -611,6 +614,9 @@ impl Default for Args {
             fuse_ld: None,
             rdynamic: false,
             cpp_mode: false,
+            dump_machine: false,
+            dump_specs: false,
+            dump_version: false,
         }
     }
 }
@@ -642,7 +648,13 @@ impl Args {
                 cpp_mode
             };
 
-            if args.dont_assemble || args.dont_link || args.preprocess_only {
+            if args.dont_assemble
+                || args.dont_link
+                || args.preprocess_only
+                || args.dump_version
+                || args.dump_machine
+                || args.dump_specs
+            {
                 args.mode = Mode::CompileOnly;
             } else if !args.sources.is_empty() {
                 args.mode = Mode::CompileAndLink
@@ -859,6 +871,24 @@ fn setup_parser() -> Result<ArgParser> {
         .short("w")
         .bind(|args| FlagValue::Multi(&mut args.compiler_args))
         .raw()
+        .build()?;
+
+    parser
+        .declare_flag()
+        .short("dumpmachine")
+        .bind(|args| FlagValue::Single(&mut args.dump_machine))
+        .build()?;
+
+    parser
+        .declare_flag()
+        .short("dumpspecs")
+        .bind(|args| FlagValue::Single(&mut args.dump_specs))
+        .build()?;
+
+    parser
+        .declare_flag()
+        .short("dumpversion")
+        .bind(|args| FlagValue::Single(&mut args.dump_version))
         .build()?;
 
     // TODO: properly handle (not just forward) all `--print-*` args
@@ -1108,6 +1138,29 @@ fn setup_parser() -> Result<ArgParser> {
         .declare_arg()
         .long("print-prog-name")
         .short("print-prog-name")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .prefix("d")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .long("dumpbase")
+        .short("dumpbase")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
+        .long("dumpdir")
+        .short("dumpdir")
         .bind(|args| ArgValue::Multi(&mut args.compiler_args))
         .raw()
         .build()?;
@@ -1682,6 +1735,33 @@ mod tests {
         let args = ["-g0", "-gdwarf-5"];
         parser.parse(&args);
         assert_eq!(parser.args.compiler_args, args);
+        assert!(parser.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn dump_parsing() {
+        let mut parser = setup_parser().unwrap();
+        let args = [
+            "-dumpbase",
+            "foo.c",
+            "--dumpbase",
+            "bar.c",
+            "-dumpdir",
+            "/tmp/dump",
+            "--dumpdir=/var/dump",
+            "-dfoo",
+        ];
+        parser.parse(&args);
+        assert_eq!(parser.args.compiler_args, args);
+        assert!(!parser.args.dump_machine);
+        parser.parse(&["-dumpmachine"]);
+        assert!(parser.args.dump_machine);
+        assert!(!parser.args.dump_specs);
+        parser.parse(&["-dumpspecs"]);
+        assert!(parser.args.dump_specs);
+        assert!(!parser.args.dump_version);
+        parser.parse(&["-dumpversion"]);
+        assert!(parser.args.dump_version);
         assert!(parser.unknown_args.is_empty());
     }
 }
