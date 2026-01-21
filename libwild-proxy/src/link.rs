@@ -151,8 +151,8 @@ fn gcc_objects(args: &Args) -> Result<GccObjects> {
     })
 }
 
-pub(crate) fn link(args: &Args, cpp_mode: bool) -> Result<()> {
-    let linker_args = build_link_args(&args, cpp_mode)?;
+pub(crate) fn link(args: &Args) -> Result<()> {
+    let linker_args = build_link_args(&args)?;
 
     if args.hash_hash_hash || args.verbose {
         eprintln!(" wild {}", linker_args.join(" "));
@@ -170,7 +170,7 @@ pub(crate) fn link(args: &Args, cpp_mode: bool) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn build_link_args(args: &Args, cpp_mode: bool) -> Result<Vec<String>> {
+pub(crate) fn build_link_args(args: &Args) -> Result<Vec<String>> {
     let system_library_paths = system_library_paths(&args)?;
     let gcc_objects = gcc_objects(&args)?;
     // Based on Clang
@@ -222,7 +222,7 @@ pub(crate) fn build_link_args(args: &Args, cpp_mode: bool) -> Result<Vec<String>
     }
     final_linker_args.extend(args.raw_linker_args.clone().into_iter());
     if !args.nodefaultlibs && !args.nostdlib && !args.nostdlibxx {
-        if cpp_mode {
+        if args.cpp_mode {
             final_linker_args.extend(["-lstdc++".to_string(), "-lm".to_string()]);
         }
     }
@@ -261,3 +261,6 @@ pub(crate) fn build_link_args(args: &Args, cpp_mode: bool) -> Result<Vec<String>
     );
     Ok(final_linker_args)
 }
+
+// World:
+// Gnome: dev-lang/spidermonkey net-misc/networkmanager net-libs/webkit-gtk

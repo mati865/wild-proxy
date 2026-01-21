@@ -76,7 +76,7 @@ pub fn process(original_args: &[&str], zero_position_arg: &str, binary_name: &st
         }
     }
 
-    let parsed_args = args::Args::parse_args(&args, target)?;
+    let parsed_args = args::Args::parse_args(&args, target, cpp_mode)?;
 
     if parsed_args.help {
         bail!("Help is not supported yet");
@@ -109,7 +109,7 @@ pub fn process(original_args: &[&str], zero_position_arg: &str, binary_name: &st
         }
         Mode::LinkOnly => {
             if !parsed_args.version {
-                link::link(&parsed_args, cpp_mode)?;
+                link::link(&parsed_args)?;
             }
         }
         Mode::CompileAndLink => {
@@ -213,8 +213,8 @@ mod tests {
             "-Wl,-z,origin",
             "-Wl,-rpath,/../lib",
         ];
-        let parsed = Args::parse_args(&args, None).unwrap();
-        let link_args = build_link_args(&parsed, false).unwrap();
+        let parsed = Args::parse_args(&args, None, false).unwrap();
+        let link_args = build_link_args(&parsed).unwrap();
         assert_eq!(
             link_args,
             vec![
@@ -584,8 +584,8 @@ mod tests {
             "-Wl,-z,origin",
             "-Wl,-rpath,/../lib",
         ];
-        let parsed = Args::parse_args(&args, None).unwrap();
-        let link_args = build_link_args(&parsed, false).unwrap();
+        let parsed = Args::parse_args(&args, None, false).unwrap();
+        let link_args = build_link_args(&parsed).unwrap();
         assert_eq!(
             link_args,
             vec![

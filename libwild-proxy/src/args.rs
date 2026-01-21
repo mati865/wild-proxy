@@ -570,6 +570,7 @@ pub(crate) struct Args {
     pub(crate) version: bool,
     pub(crate) fuse_ld: Option<String>,
     pub(crate) rdynamic: bool,
+    pub(crate) cpp_mode: bool,
 }
 
 impl Default for Args {
@@ -609,12 +610,13 @@ impl Default for Args {
             version: false,
             fuse_ld: None,
             rdynamic: false,
+            cpp_mode: false,
         }
     }
 }
 
 impl Args {
-    pub(crate) fn parse_args(args: &[&str], target: Option<Arch>) -> Result<Self> {
+    pub(crate) fn parse_args(args: &[&str], target: Option<Arch>, cpp_mode: bool) -> Result<Self> {
         let mut parser = setup_parser()?;
         parser.parse(args);
         let mut args = parser.args;
@@ -630,11 +632,17 @@ impl Args {
                 args.arch = target;
             }
 
-            if args.dont_assemble
-                || args.dont_link
-                || args.language.is_some()
-                || args.preprocess_only
-            {
+            args.cpp_mode = if let Some(language) = &args.language {
+                match language.as_str() {
+                    "c" => false,
+                    "c++" => true,
+                    other => bail!("Unknown language: {}", other),
+                }
+            } else {
+                cpp_mode
+            };
+
+            if args.dont_assemble || args.dont_link || args.preprocess_only {
                 args.mode = Mode::CompileOnly;
             } else if !args.sources.is_empty() {
                 args.mode = Mode::CompileAndLink
