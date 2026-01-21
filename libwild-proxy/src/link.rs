@@ -226,6 +226,9 @@ pub(crate) fn build_link_args(args: &Args) -> Result<Vec<String>> {
             final_linker_args.extend(["-lstdc++".to_string(), "-lm".to_string()]);
         }
     }
+    if args.openmp {
+        final_linker_args.push("-lgomp".to_string());
+    }
     if args.coverage {
         final_linker_args.push("-lgcov".to_string());
     }

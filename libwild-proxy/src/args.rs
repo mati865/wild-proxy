@@ -574,6 +574,7 @@ pub(crate) struct Args {
     dump_machine: bool,
     dump_specs: bool,
     dump_version: bool,
+    pub(crate) openmp: bool,
 }
 
 impl Default for Args {
@@ -617,6 +618,7 @@ impl Default for Args {
             dump_machine: false,
             dump_specs: false,
             dump_version: false,
+            openmp: false,
         }
     }
 }
@@ -809,6 +811,30 @@ fn setup_parser() -> Result<ArgParser> {
 
     parser
         .declare_flag()
+        .short("fopenmp")
+        .bind(|args| FlagValue::Single(&mut args.openmp))
+        .build()?;
+
+    parser
+        .declare_flag()
+        .short("dumpmachine")
+        .bind(|args| FlagValue::Single(&mut args.dump_machine))
+        .build()?;
+
+    parser
+        .declare_flag()
+        .short("dumpspecs")
+        .bind(|args| FlagValue::Single(&mut args.dump_specs))
+        .build()?;
+
+    parser
+        .declare_flag()
+        .short("dumpversion")
+        .bind(|args| FlagValue::Single(&mut args.dump_version))
+        .build()?;
+
+    parser
+        .declare_flag()
         .short("M")
         .bind(|args| FlagValue::Multi(&mut args.compiler_args))
         .raw()
@@ -878,24 +904,6 @@ fn setup_parser() -> Result<ArgParser> {
         .declare_flag()
         .short("s")
         .bind(|args| FlagValue::Multi(&mut args.compiler_args))
-        .build()?;
-
-    parser
-        .declare_flag()
-        .short("dumpmachine")
-        .bind(|args| FlagValue::Single(&mut args.dump_machine))
-        .build()?;
-
-    parser
-        .declare_flag()
-        .short("dumpspecs")
-        .bind(|args| FlagValue::Single(&mut args.dump_specs))
-        .build()?;
-
-    parser
-        .declare_flag()
-        .short("dumpversion")
-        .bind(|args| FlagValue::Single(&mut args.dump_version))
         .build()?;
 
     parser
@@ -1794,6 +1802,15 @@ mod tests {
         let args = ["-ansi", "--ansi"];
         parser.parse(&args);
         assert_eq!(parser.args.compiler_args, args);
+        assert!(parser.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn openmp_parsing() {
+        let mut parser = setup_parser().unwrap();
+        assert!(!parser.args.openmp);
+        parser.parse(&["-fopenmp"]);
+        assert!(parser.args.openmp);
         assert!(parser.unknown_args.is_empty());
     }
 }
