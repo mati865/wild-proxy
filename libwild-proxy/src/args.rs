@@ -632,6 +632,8 @@ impl Args {
         // Transformations to make the resulting struct more suitable.
         // TODO: Find a better way to do this.
         {
+            args.cpp_mode = cpp_mode;
+
             args.output_kind = OutputKind::from_args(&args);
 
             if let Some(target) = &args.target {
@@ -639,16 +641,6 @@ impl Args {
             } else if let Some(target) = target {
                 args.arch = target;
             }
-
-            args.cpp_mode = if let Some(language) = &args.language {
-                match language.as_str() {
-                    "c" => false,
-                    "c++" => true,
-                    other => bail!("Unknown language: {}", other),
-                }
-            } else {
-                cpp_mode
-            };
 
             if args.dont_assemble
                 || args.dont_link
@@ -1411,12 +1403,14 @@ mod tests {
     }
 
     #[test]
-    fn c_args_parsing() {
+    fn x_arg_parsing() {
         let mut parser = setup_parser().unwrap();
         parser.parse(&["-x", "c"]);
         assert_eq!(parser.args.language.as_deref(), Some("c"));
         parser.parse(&["-xc++"]);
         assert_eq!(parser.args.language.as_deref(), Some("c++"));
+        parser.parse(&["-x", "assembler-with-cpp"]);
+        assert_eq!(parser.args.language.as_deref(), Some("assembler-with-cpp"));
         assert!(parser.unknown_args.is_empty());
     }
 
