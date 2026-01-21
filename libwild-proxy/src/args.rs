@@ -873,6 +873,13 @@ fn setup_parser() -> Result<ArgParser> {
         .raw()
         .build()?;
 
+    // ignored
+    parser
+        .declare_flag()
+        .short("s")
+        .bind(|args| FlagValue::Multi(&mut args.compiler_args))
+        .build()?;
+
     parser
         .declare_flag()
         .short("dumpmachine")
@@ -1762,6 +1769,14 @@ mod tests {
         assert!(!parser.args.dump_version);
         parser.parse(&["-dumpversion"]);
         assert!(parser.args.dump_version);
+        assert!(parser.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn s_parsing() {
+        let mut parser = setup_parser().unwrap();
+        let args = ["-s"];
+        parser.parse(&args);
         assert!(parser.unknown_args.is_empty());
     }
 }
