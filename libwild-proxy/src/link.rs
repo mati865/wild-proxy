@@ -158,7 +158,12 @@ pub(crate) fn link(args: &Args, cpp_mode: bool) -> Result<()> {
         eprintln!(" wild {}", linker_args.join(" "));
     }
     if !args.hash_hash_hash {
-        let wild_args = libwild::Args::parse(|| linker_args.iter()).expect("todo");
+        let wild_args = match libwild::Args::parse(|| linker_args.iter()) {
+            Ok(args) => args,
+            Err(e) => {
+                bail!("Wild args parse error: {}", e.to_string());
+            }
+        };
         unsafe { libwild::run_in_subprocess(wild_args) }
     }
 
