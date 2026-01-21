@@ -898,6 +898,14 @@ fn setup_parser() -> Result<ArgParser> {
         .bind(|args| FlagValue::Single(&mut args.dump_version))
         .build()?;
 
+    parser
+        .declare_flag()
+        .long("ansi")
+        .short("ansi")
+        .bind(|args| FlagValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
     // TODO: properly handle (not just forward) all `--print-*` args
     parser
         .declare_flag()
@@ -1777,6 +1785,15 @@ mod tests {
         let mut parser = setup_parser().unwrap();
         let args = ["-s"];
         parser.parse(&args);
+        assert!(parser.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn ansi_parsing() {
+        let mut parser = setup_parser().unwrap();
+        let args = ["-ansi", "--ansi"];
+        parser.parse(&args);
+        assert_eq!(parser.args.compiler_args, args);
         assert!(parser.unknown_args.is_empty());
     }
 }
