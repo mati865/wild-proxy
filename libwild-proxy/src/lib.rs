@@ -88,6 +88,14 @@ pub fn process(original_args: &[&str], zero_position_arg: &str, binary_name: &st
             env!("CARGO_PKG_NAME"),
             env!("CARGO_PKG_VERSION")
         );
+        // Zlib's `configure` script looks for "gcc" or "clang" in the output.
+        println!(
+            "Compatible with gcc and clang, currently interposing: {}",
+            find_next_executable(zero_position_path)?
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("unknown")
+        )
     } else if parsed_args.mode == Mode::None {
         bail!("no input files")
     }
