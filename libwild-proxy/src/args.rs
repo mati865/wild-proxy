@@ -1004,6 +1004,13 @@ fn setup_parser() -> Result<ArgParser> {
 
     parser
         .declare_arg()
+        .prefix("Q")
+        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_arg()
         .short("MF")
         .bind(|args| ArgValue::Multi(&mut args.compiler_args))
         .raw()
@@ -1812,6 +1819,15 @@ mod tests {
         assert!(!parser.args.openmp);
         parser.parse(&["-fopenmp"]);
         assert!(parser.args.openmp);
+        assert!(parser.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn q_parsing() {
+        let mut parser = setup_parser().unwrap();
+        let args = ["-Qunused-arguments", "-Qn"];
+        parser.parse(&args);
+        assert_eq!(parser.args.compiler_args, args);
         assert!(parser.unknown_args.is_empty());
     }
 }
