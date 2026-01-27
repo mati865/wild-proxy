@@ -8,7 +8,7 @@ edition.workspace = true
 
 [dependencies]
 anyhow = "1.0"
-libwild = { version = "0.8.0", features = ["fork"] }
+libwild = { git = "https://github.com/mati865/wild.git", rev = "a123ba3", features = ["fork"] }
 shell-words = "1.1.0"
 tracing = "0.1"
 
