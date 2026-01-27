@@ -654,7 +654,7 @@ impl Args {
                 args.mode = Mode::CompileAndLink
             } else if args.input_objects_found || !args.raw_linker_args.is_empty() {
                 args.mode = Mode::LinkOnly
-            } else if args.version {
+            } else if args.version || args.verbose || args.hash_hash_hash {
                 // If no specific mode can be determined, and we are asked to print the version,
                 // this is probably a build system that tries to determine the compiler kind.
                 args.mode = Mode::CompileOnly
