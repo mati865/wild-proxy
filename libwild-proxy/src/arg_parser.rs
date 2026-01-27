@@ -383,7 +383,9 @@ impl ArgParser {
             {
                 // Neither a flag nor an argument, so it's an object or source file.
                 if [
-                    ".c", ".cc", ".cpp", ".cxx", ".s", ".S", ".h", ".hpp", ".hxx", ".h++",
+                    ".c", ".h", ".i", // C
+                    ".cc", ".cpp", ".cxx", ".hpp", ".hxx", ".h++", ".ii", // C++
+                    ".s", ".S", // Assembly
                 ]
                 .iter()
                 .any(|ext| arg.ends_with(ext))
