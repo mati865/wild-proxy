@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 pub(crate) struct DeleteOutputs {
-    outputs: Vec<PathBuf>,
+    pub(crate) outputs: Vec<PathBuf>,
 }
 
 impl DeleteOutputs {

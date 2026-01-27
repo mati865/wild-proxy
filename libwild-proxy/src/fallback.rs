@@ -112,8 +112,21 @@ pub fn fallback() -> Result<()> {
     let mut wild_result = Ok(());
 
     if let Some(command) = commands.link {
-        let args = shell_words::split(command)?;
-        let wild_args = libwild::Args::parse(|| args.iter().skip(1));
+        let mut args = shell_words::split(command)?;
+        // When GCC is invoked with a response file and supposed to do linking, it'll prepare
+        // a response file that contains the objects for the linker. Or rather would do that, but
+        // we called it with `-###`.
+        // To deal with this complication, we can pass the linker all the temporary objects and skip
+        // the response file.
+        if args.iter().any(|arg| arg.starts_with('@')) {
+            args.extend(files_to_delete.outputs.iter().find_map(|path| {
+                path.extension()
+                    .is_some_and(|ext| ext == "o")
+                    .then(|| path.to_string_lossy().to_string())
+            }));
+        }
+        let wild_args =
+            libwild::Args::parse(|| args.iter().skip(1).filter(|arg| !arg.starts_with('@')));
 
         match wild_args {
             Ok(wild_args) => {
