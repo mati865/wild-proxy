@@ -555,7 +555,7 @@ pub(crate) struct Args {
     pub(crate) coverage: bool,
     pub(crate) profile: bool,
     target: Option<String>,
-    language: Option<String>,
+    pub(crate) language: Option<String>,
     dont_assemble: bool,
     dont_link: bool,
     preprocess_only: bool,
@@ -934,6 +934,13 @@ fn setup_parser() -> Result<ArgParser> {
         .declare_arg()
         .short("x")
         .prefix("x")
+        .converter(|str| {
+            if str == "none" {
+                None
+            } else {
+                Some(str.to_string())
+            }
+        })
         .bind(|args| ArgValue::SingleOptional(&mut args.language))
         .build()?;
 

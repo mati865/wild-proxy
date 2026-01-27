@@ -31,6 +31,7 @@ struct Arg {
     args_field: for<'b> fn(&'b mut Args) -> ArgValue<'b>,
     separator: Option<char>,
     raw: bool,
+    converter: Option<fn(&str) -> Option<String>>,
 }
 
 #[derive(Copy, Clone)]
@@ -74,6 +75,7 @@ impl<'p> FlagBuilder<'p> {
         self
     }
 
+    #[must_use]
     pub(crate) fn raw(mut self) -> Self {
         self.unstripped = true;
         self
@@ -123,6 +125,7 @@ pub(crate) struct ArgBuilder<'p> {
     separator: Option<char>,
     args_field: Option<for<'b> fn(&'b mut Args) -> ArgValue<'b>>,
     unstripped: bool,
+    converter: Option<fn(&str) -> Option<String>>,
 }
 
 impl<'p> ArgBuilder<'p> {
@@ -163,8 +166,15 @@ impl<'p> ArgBuilder<'p> {
         self
     }
 
+    #[must_use]
     pub(crate) fn raw(mut self) -> Self {
         self.unstripped = true;
+        self
+    }
+
+    #[must_use]
+    pub(crate) fn converter(mut self, converter: fn(&str) -> Option<String>) -> Self {
+        self.converter = Some(converter);
         self
     }
 
@@ -177,10 +187,15 @@ impl<'p> ArgBuilder<'p> {
             bail!("Argument name is missing");
         }
 
+        if self.unstripped && self.converter.is_some() {
+            bail!("Cannot use converter with raw argument")
+        }
+
         let arg = Arg {
             args_field,
             separator: self.separator,
             raw: self.unstripped,
+            converter: self.converter,
         };
 
         if let Some(long_name) = self.long_name {
@@ -218,6 +233,7 @@ impl ArgParser {
             separator: None,
             args_field: None,
             unstripped: false,
+            converter: None,
         }
     }
 
@@ -333,11 +349,13 @@ impl ArgParser {
                 }
                 ArgValue::SingleOptional(single_value) => {
                     if arg.raw {
-                        if next_arg.is_some() {
-                            panic!("Unstripped argument cannot be created from two arguments");
-                        } else {
-                            single_value.replace(raw_arg.to_string());
-                        }
+                        assert!(
+                            next_arg.is_none(),
+                            "Unstripped argument cannot be created from two arguments"
+                        );
+                        single_value.replace(raw_arg.to_string());
+                    } else if let Some(converter) = arg.converter {
+                        *single_value = converter(value)
                     } else {
                         single_value.replace(value.to_string());
                     }
@@ -381,14 +399,16 @@ impl ArgParser {
                 && !self.parse_arg(arg, &mut args_iter)
                 && !self.handle_unknown_arg(arg)
             {
-                // Neither a flag nor an argument, so it's an object or source file.
-                if [
-                    ".c", ".h", ".i", // C
-                    ".cc", ".cpp", ".cxx", ".hpp", ".hxx", ".h++", ".ii", // C++
-                    ".s", ".S", // Assembly
-                ]
-                .iter()
-                .any(|ext| arg.ends_with(ext))
+                // Neither a flag nor an argument, so it's an object or source file. It could be
+                // overridden by `-x`, otherwise determine the type based on the extension.
+                if self.args.language.is_some()
+                    || [
+                        ".c", ".h", ".i", // C
+                        ".cc", ".cpp", ".cxx", ".hpp", ".hxx", ".h++", ".ii", // C++
+                        ".s", ".S", // Assembly
+                    ]
+                    .iter()
+                    .any(|ext| arg.ends_with(ext))
                 {
                     self.args.sources.push(arg.to_string());
                 } else {
