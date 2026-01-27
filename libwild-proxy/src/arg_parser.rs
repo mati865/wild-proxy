@@ -382,9 +382,11 @@ impl ArgParser {
                 && !self.handle_unknown_arg(arg)
             {
                 // Neither a flag nor an argument, so it's an object or source file.
-                if [".c", ".cc", ".cpp", ".cxx", ".s", ".S"]
-                    .iter()
-                    .any(|ext| arg.ends_with(ext))
+                if [
+                    ".c", ".cc", ".cpp", ".cxx", ".s", ".S", ".h", ".hpp", ".hxx", ".h++",
+                ]
+                .iter()
+                .any(|ext| arg.ends_with(ext))
                 {
                     self.args.sources.push(arg.to_string());
                 } else {
