@@ -83,7 +83,12 @@ pub fn fallback() -> Result<()> {
     while let Some(command) = steps_iterator.next() {
         let split_up_args = shell_words::split(command)?;
         let exit_status = if piped {
-            Command::new("sh").arg("-c").arg(command).status()?
+            Command::new("sh")
+                .arg("-o")
+                .arg("pipefail")
+                .arg("-c")
+                .arg(command)
+                .status()?
         } else {
             Command::new(split_up_args.first().unwrap())
                 .args(&split_up_args[1..])
