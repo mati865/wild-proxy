@@ -575,6 +575,16 @@ pub(crate) struct Args {
     dump_specs: bool,
     dump_version: bool,
     pub(crate) openmp: bool,
+    print_prog_name: Option<String>,
+    print_file_name: Option<String>,
+    print_search_dirs: bool,
+    print_multi_os_directory: bool,
+    print_libgcc_file_name: bool,
+    print_multiarch: bool,
+    print_multi_directory: bool,
+    print_multi_lib: bool,
+    print_sysroot: bool,
+    print_sysroot_headers_suffix: bool,
 }
 
 impl Default for Args {
@@ -619,6 +629,16 @@ impl Default for Args {
             dump_specs: false,
             dump_version: false,
             openmp: false,
+            print_prog_name: None,
+            print_file_name: None,
+            print_search_dirs: false,
+            print_multi_os_directory: false,
+            print_libgcc_file_name: false,
+            print_multiarch: false,
+            print_multi_directory: false,
+            print_multi_lib: false,
+            print_sysroot: false,
+            print_sysroot_headers_suffix: false,
         }
     }
 }
@@ -648,6 +668,16 @@ impl Args {
                 || args.dump_version
                 || args.dump_machine
                 || args.dump_specs
+                || args.print_prog_name.is_some()
+                || args.print_file_name.is_some()
+                || args.print_search_dirs
+                || args.print_multi_os_directory
+                || args.print_libgcc_file_name
+                || args.print_multiarch
+                || args.print_multi_directory
+                || args.print_multi_lib
+                || args.print_sysroot
+                || args.print_sysroot_headers_suffix
                 || args.version
                 || args.hash_hash_hash
                 || (args.verbose && args.raw_linker_args.is_empty())
@@ -916,18 +946,58 @@ fn setup_parser() -> Result<ArgParser> {
     // TODO: properly handle (not just forward) all `--print-*` args
     parser
         .declare_flag()
-        .long("print-search-dirs")
-        .short("print-search-dirs")
-        .bind(|args| FlagValue::Multi(&mut args.compiler_args))
-        .raw()
+        .long("print-libgcc-file-name")
+        .short("print-libgcc-file-name")
+        .bind(|args| FlagValue::Single(&mut args.print_libgcc_file_name))
+        .build()?;
+
+    parser
+        .declare_flag()
+        .long("print-multi-directory")
+        .short("print-multi-directory")
+        .bind(|args| FlagValue::Single(&mut args.print_multi_directory))
+        .build()?;
+
+    parser
+        .declare_flag()
+        .long("print-multi-lib")
+        .short("print-multi-lib")
+        .bind(|args| FlagValue::Single(&mut args.print_multi_lib))
         .build()?;
 
     parser
         .declare_flag()
         .long("print-multi-os-directory")
         .short("print-multi-os-directory")
-        .bind(|args| FlagValue::Multi(&mut args.compiler_args))
-        .raw()
+        .bind(|args| FlagValue::Single(&mut args.print_multi_os_directory))
+        .build()?;
+
+    parser
+        .declare_flag()
+        .long("print-multiarch")
+        .short("print-multiarch")
+        .bind(|args| FlagValue::Single(&mut args.print_multiarch))
+        .build()?;
+
+    parser
+        .declare_flag()
+        .long("print-search-dirs")
+        .short("print-search-dirs")
+        .bind(|args| FlagValue::Single(&mut args.print_search_dirs))
+        .build()?;
+
+    parser
+        .declare_flag()
+        .long("print-sysroot")
+        .short("print-sysroot")
+        .bind(|args| FlagValue::Single(&mut args.print_sysroot))
+        .build()?;
+
+    parser
+        .declare_flag()
+        .long("print-sysroot-headers-suffix")
+        .short("print-sysroot-headers-suffix")
+        .bind(|args| FlagValue::Single(&mut args.print_sysroot_headers_suffix))
         .build()?;
 
     parser
@@ -1164,10 +1234,16 @@ fn setup_parser() -> Result<ArgParser> {
     // TODO: properly handle (not just forward) all `--print-*` args
     parser
         .declare_arg()
+        .long("print-file-name")
+        .short("print-file-name")
+        .bind(|args| ArgValue::SingleOptional(&mut args.print_file_name))
+        .build()?;
+
+    parser
+        .declare_arg()
         .long("print-prog-name")
         .short("print-prog-name")
-        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
-        .raw()
+        .bind(|args| ArgValue::SingleOptional(&mut args.print_prog_name))
         .build()?;
 
     parser
@@ -1692,16 +1768,49 @@ mod tests {
     fn print_parsing() {
         let mut parser = setup_parser().unwrap();
         let args = [
+            "-print-prog-name=ranlib",
             "--print-prog-name",
             "ar",
-            "-print-prog-name=ranlib",
-            "--print-search-dirs",
             "-print-search-dirs",
+            "--print-search-dirs",
             "-print-multi-os-directory",
+            "--print-multi-os-directory",
+            "-print-file-name",
+            "include-fixed",
+            "--print-file-name=include",
+            "-print-libgcc-file-name",
+            "--print-libgcc-file-name",
+            "-print-multiarch",
+            "--print-multiarch",
+            "-print-multi-directory",
+            "--print-multi-directory",
+            "-print-multi-lib",
+            "--print-multi-lib",
+            "-print-sysroot",
+            "--print-sysroot",
+            "-print-sysroot-headers-suffix",
+            "--print-sysroot-headers-suffix",
         ];
+        assert_eq!(parser.args.print_file_name, None);
+        assert_eq!(parser.args.print_prog_name, None);
+        assert!(!parser.args.print_libgcc_file_name);
+        assert!(!parser.args.print_multi_directory);
+        assert!(!parser.args.print_multi_lib);
+        assert!(!parser.args.print_multi_os_directory);
+        assert!(!parser.args.print_search_dirs);
+        assert!(!parser.args.print_sysroot);
+        assert!(!parser.args.print_sysroot_headers_suffix);
         parser.parse(&args);
-        assert_eq!(parser.args.compiler_args, args);
-        assert!(parser.unknown_args.is_empty());
+        assert_eq!(parser.args.print_file_name, Some("include".to_string()));
+        assert_eq!(parser.args.print_prog_name, Some("ar".to_string()));
+        assert!(parser.args.print_libgcc_file_name);
+        assert!(parser.args.print_multi_directory);
+        assert!(parser.args.print_multi_lib);
+        assert!(parser.args.print_multi_os_directory);
+        assert!(parser.args.print_search_dirs);
+        assert!(parser.args.print_sysroot);
+        assert!(parser.args.print_sysroot_headers_suffix);
+        assert_eq!(parser.unknown_args, Vec::<String>::new());
     }
 
     #[test]
