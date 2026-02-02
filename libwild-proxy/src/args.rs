@@ -905,6 +905,14 @@ fn setup_parser() -> Result<ArgParser> {
         .raw()
         .build()?;
 
+    parser
+        .declare_flag()
+        .short("pedantic")
+        .long("pedantic")
+        .bind(|args| FlagValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
     // TODO: properly handle (not just forward) all `--print-*` args
     parser
         .declare_flag()
@@ -1061,14 +1069,6 @@ fn setup_parser() -> Result<ArgParser> {
     parser
         .declare_arg()
         .prefix("f")
-        .bind(|args| ArgValue::Multi(&mut args.compiler_args))
-        .raw()
-        .build()?;
-
-    parser
-        .declare_arg()
-        .short("pedantic")
-        .long("pedantic")
         .bind(|args| ArgValue::Multi(&mut args.compiler_args))
         .raw()
         .build()?;
