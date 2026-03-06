@@ -188,15 +188,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "790eea4361631c5e7d22598ecd5723ff611904e3344ce8720784c93e3d83d40b"
 
 [[package]]
-name = "crossbeam-channel"
-version = "0.5.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82b8f8f868b36967f9606790d1903570de9ceaf870a7bf9fbbd3016d636a2cb2"
-dependencies = [
- "crossbeam-utils",
-]
-
-[[package]]
 name = "crossbeam-deque"
 version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -469,7 +460,7 @@ checksum = "2874a2af47a2325c2001a6e6fad9b16a53b802102b528163885171cf92b15976"
 [[package]]
 name = "libwild"
 version = "0.8.0"
-source = "git+https://github.com/mati865/wild.git?rev=a123ba3#a123ba38ccfe497e6022df9e32f9b5080da56af8"
+source = "git+https://github.com/mati865/wild.git?rev=43422d1#43422d1a7f7556cfc7b7eae27cb18a4862b18c46"
 dependencies = [
  "anyhow",
  "atomic-take",
@@ -479,7 +470,6 @@ dependencies = [
  "bytesize",
  "colored",
  "colosseum",
- "crossbeam-channel",
  "crossbeam-queue",
  "crossbeam-utils",
  "derive_more",
@@ -541,7 +531,7 @@ dependencies = [
 [[package]]
 name = "linker-layout"
 version = "0.8.0"
-source = "git+https://github.com/mati865/wild.git?rev=a123ba3#a123ba38ccfe497e6022df9e32f9b5080da56af8"
+source = "git+https://github.com/mati865/wild.git?rev=43422d1#43422d1a7f7556cfc7b7eae27cb18a4862b18c46"
 dependencies = [
  "anyhow",
  "postcard",
@@ -551,7 +541,7 @@ dependencies = [
 [[package]]
 name = "linker-trace"
 version = "0.8.0"
-source = "git+https://github.com/mati865/wild.git?rev=a123ba3#a123ba38ccfe497e6022df9e32f9b5080da56af8"
+source = "git+https://github.com/mati865/wild.git?rev=43422d1#43422d1a7f7556cfc7b7eae27cb18a4862b18c46"
 dependencies = [
  "anyhow",
  "postcard",
@@ -561,7 +551,7 @@ dependencies = [
 [[package]]
 name = "linker-utils"
 version = "0.8.0"
-source = "git+https://github.com/mati865/wild.git?rev=a123ba3#a123ba38ccfe497e6022df9e32f9b5080da56af8"
+source = "git+https://github.com/mati865/wild.git?rev=43422d1#43422d1a7f7556cfc7b7eae27cb18a4862b18c46"
 dependencies = [
  "anyhow",
  "derive_more",
@@ -643,8 +633,7 @@ dependencies = [
 [[package]]
 name = "object"
 version = "0.38.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "271638cd5fa9cca89c4c304675ca658efc4e64a66c716b7cfe1afb4b9611dbbc"
+source = "git+https://github.com/gimli-rs/object?rev=ae958b9f2c8a3a56fe19bb4b380144a32eebb770#ae958b9f2c8a3a56fe19bb4b380144a32eebb770"
 dependencies = [
  "memchr",
 ]
