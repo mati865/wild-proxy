@@ -679,8 +679,7 @@ impl Args {
                 || args.print_sysroot
                 || args.print_sysroot_headers_suffix
                 || args.version
-                || args.hash_hash_hash
-                || (args.verbose && args.raw_linker_args.is_empty())
+                || (args.hash_hash_hash || args.verbose) && args.raw_linker_args.is_empty()
             {
                 args.mode = Mode::CompileOnly;
             } else if !args.sources.is_empty() {

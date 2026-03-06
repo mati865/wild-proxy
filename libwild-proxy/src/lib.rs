@@ -83,13 +83,17 @@ pub fn process(original_args: &[&str], zero_position_arg: &str, binary_name: &st
     }
 
     if parsed_args.hash_hash_hash || parsed_args.verbose || parsed_args.version {
-        println!(
-            "{} version {}",
-            env!("CARGO_PKG_NAME"),
-            env!("CARGO_PKG_VERSION")
-        );
+        println!("{binary_name} version {}", env!("CARGO_PKG_VERSION"));
+        let compiler_path = find_next_executable(&zero_position_path)?;
+        let interposed_compiler = compiler_path.file_stem().unwrap().to_str().unwrap();
         // Zlib's `configure` script looks for "gcc" or "clang" in the output.
-        println!("Compatible with other compilers CLI, currently interposing:",)
+        println!(
+            "Compatible with other compilers CLI, currently interposing: {interposed_compiler}"
+        );
+        Command::new(interposed_compiler)
+            .args(args)
+            .arg("-c")
+            .status()?;
     } else if parsed_args.mode == Mode::None {
         bail!("no input files")
     }
