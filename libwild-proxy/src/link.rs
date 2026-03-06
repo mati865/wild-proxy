@@ -13,7 +13,7 @@ struct SystemLibraryPaths {
     library_paths: Vec<String>,
 }
 
-fn system_library_paths(args: &Args) -> Result<SystemLibraryPaths> {
+fn system_library_paths(args: &Args, gcc_libs_path: &PathBuf) -> Result<SystemLibraryPaths> {
     // 535 │ glibc /usr/lib/Mcrt1.o
     // 536 │ glibc /usr/lib/Scrt1.o
     // 539 │ glibc /usr/lib/crt1.o
@@ -40,23 +40,25 @@ fn system_library_paths(args: &Args) -> Result<SystemLibraryPaths> {
     let crti_name = "crti.o";
     let crtn_name = "crtn.o";
 
-    // TODO: handle --target (also combine with --sysroot)
-    let base = if let Some(path) = &args.sysroot {
-        path.trim_end_matches('/')
+    let potential_paths = if let Some(path) = &args.sysroot
+        && path != "/"
+    {
+        let trimmed = path.trim_end_matches("/");
+        vec![
+            format!("{}/../../../../lib64", gcc_libs_path.display()),
+            format!("{trimmed}/../lib64"),
+            format!("{trimmed}/lib"),
+        ]
     } else {
-        ""
+        vec![
+            format!("{}/../../../../lib64", gcc_libs_path.display()),
+            // This needs to be relative not to break Wild's WILD_SAVE_DIR
+            "/lib/../lib64".to_string(),
+            "/usr/lib64".to_string(),
+            "/lib".to_string(),
+            "/usr/lib".to_string(),
+        ]
     };
-    let triple_path = format!("{base}/usr/lib/{}-linux-gnu", args.arch);
-    let mut potential_paths = Vec::new();
-    if std::fs::exists(&triple_path).is_ok_and(|v| v) {
-        potential_paths.push(triple_path)
-    };
-    potential_paths.extend([
-        format!("{base}/lib64"),
-        format!("{base}/usr/lib64"),
-        format!("{base}/lib"),
-        format!("{base}/usr/lib"),
-    ]);
     let Some(found_path) = potential_paths
         .iter()
         .map(Path::new)
@@ -171,8 +173,8 @@ pub(crate) fn link(args: &Args) -> Result<()> {
 }
 
 pub(crate) fn build_link_args(args: &Args) -> Result<Vec<String>> {
-    let system_library_paths = system_library_paths(&args)?;
     let gcc_objects = gcc_objects(&args)?;
+    let system_library_paths = system_library_paths(&args, &gcc_objects.lib_dir)?;
     // Based on Clang
     let builtin_args1 = [
         "--hash-style=gnu",
