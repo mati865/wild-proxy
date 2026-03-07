@@ -82,18 +82,26 @@ pub fn process(original_args: &[&str], zero_position_arg: &str, binary_name: &st
         bail!("Help is not supported yet");
     }
 
+    let interposed_compiler_path = find_next_executable(&zero_position_path)?;
+
     if parsed_args.hash_hash_hash || parsed_args.verbose || parsed_args.version {
         println!("{binary_name} version {}", env!("CARGO_PKG_VERSION"));
-        let compiler_path = find_next_executable(&zero_position_path)?;
-        let interposed_compiler = compiler_path.file_stem().unwrap().to_str().unwrap();
+        let interposed_compiler = interposed_compiler_path
+            .file_stem()
+            .unwrap()
+            .to_str()
+            .unwrap();
         // Zlib's `configure` script looks for "gcc" or "clang" in the output.
         println!(
             "Compatible with other compilers CLI, currently interposing: {interposed_compiler}"
         );
-        Command::new(interposed_compiler)
-            .args(args)
-            .arg("-c")
-            .status()?;
+        // In `Compile*` modes will spawn the compiler anyway, avoid doing it twice.
+        if parsed_args.mode != Mode::CompileOnly && parsed_args.mode != Mode::CompileAndLink {
+            Command::new(&interposed_compiler_path)
+                .args(args)
+                .arg("-c")
+                .status()?;
+        }
     } else if parsed_args.mode == Mode::None {
         bail!("no input files")
     }
@@ -104,12 +112,11 @@ pub fn process(original_args: &[&str], zero_position_arg: &str, binary_name: &st
 
     match parsed_args.mode {
         Mode::CompileOnly => {
-            let compiler_path = find_next_executable(&zero_position_path)?;
-            let mut compiler_command = Command::new(&compiler_path);
+            let mut compiler_command = Command::new(&interposed_compiler_path);
             let err = compiler_command.args(original_args).exec();
             bail!(
                 "Failed to exec compiler {}: {}",
-                compiler_path.display(),
+                interposed_compiler_path.display(),
                 err
             );
         }
