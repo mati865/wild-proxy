@@ -30,6 +30,16 @@ pub fn process(original_args: &[&str], zero_position_arg: &str, binary_name: &st
     let cpp_mode;
     let target;
     if executable_name != binary_name {
+        // TODO: This is out of place and I should think how to do it nicely.
+        if executable_name == "wild" || executable_name == "ld.wild" {
+            let wild_args = match libwild::Args::parse(|| original_args.iter()) {
+                Ok(args) => args,
+                Err(e) => {
+                    bail!("Wild args parse error: {}", e.to_string());
+                }
+            };
+            unsafe { libwild::run_in_subprocess(wild_args) }
+        }
         cpp_mode = executable_name.ends_with("++");
         let target_str = executable_name.rsplit_once("-");
         target = target_str
