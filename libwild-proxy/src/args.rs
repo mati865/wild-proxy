@@ -15,6 +15,7 @@ pub enum Mode {
     CompileOnly,
     LinkOnly,
     CompileAndLink,
+    Print,
 }
 
 #[derive(Debug, Default, PartialEq)]
@@ -575,7 +576,7 @@ pub(crate) struct Args {
     dump_specs: bool,
     dump_version: bool,
     pub(crate) openmp: bool,
-    print_prog_name: Option<String>,
+    pub(crate) print_prog_name: Option<String>,
     print_file_name: Option<String>,
     print_search_dirs: bool,
     print_multi_os_directory: bool,
@@ -662,7 +663,12 @@ impl Args {
                 args.arch = target;
             }
 
-            if args.dont_assemble
+            if let Some(name) = &mut args.print_prog_name
+                && (name == "ld" || name == "ld.bfd")
+            {
+                *name = "wild".to_string();
+                args.mode = Mode::Print
+            } else if args.dont_assemble
                 || args.dont_link
                 || args.preprocess_only
                 || args.dump_version

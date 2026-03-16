@@ -138,6 +138,13 @@ pub fn process(original_args: &[&str], zero_position_arg: &str, binary_name: &st
         Mode::CompileAndLink => {
             return fallback::fallback();
         }
+        Mode::Print => {
+            if let Some(name) = parsed_args.print_prog_name {
+                println!("{name}")
+            } else {
+                bail!("Only `--print-prog-name` is supported yet")
+            }
+        }
         Mode::None => {
             // Do nothing
         }
