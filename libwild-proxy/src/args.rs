@@ -948,6 +948,27 @@ fn setup_parser() -> Result<ArgParser> {
         .raw()
         .build()?;
 
+    parser
+        .declare_flag()
+        .short("nostdinc")
+        .bind(|args| FlagValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_flag()
+        .short("nostdinc++")
+        .bind(|args| FlagValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
+    parser
+        .declare_flag()
+        .short("nostdlibinc")
+        .bind(|args| FlagValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
     // TODO: properly handle (not just forward) all `--print-*` args
     parser
         .declare_flag()
@@ -1939,6 +1960,15 @@ mod tests {
     fn q_parsing() {
         let mut parser = setup_parser().unwrap();
         let args = ["-Qunused-arguments", "-Qn"];
+        parser.parse(&args);
+        assert_eq!(parser.args.compiler_args, args);
+        assert!(parser.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn nostdinc_parsing() {
+        let mut parser = setup_parser().unwrap();
+        let args = ["-nostdinc", "-nostdinc++", "-nostdlibinc"];
         parser.parse(&args);
         assert_eq!(parser.args.compiler_args, args);
         assert!(parser.unknown_args.is_empty());
