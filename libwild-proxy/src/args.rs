@@ -969,6 +969,13 @@ fn setup_parser() -> Result<ArgParser> {
         .raw()
         .build()?;
 
+    parser
+        .declare_flag()
+        .short("H")
+        .bind(|args| FlagValue::Multi(&mut args.compiler_args))
+        .raw()
+        .build()?;
+
     // TODO: properly handle (not just forward) all `--print-*` args
     parser
         .declare_flag()
@@ -1969,6 +1976,15 @@ mod tests {
     fn nostdinc_parsing() {
         let mut parser = setup_parser().unwrap();
         let args = ["-nostdinc", "-nostdinc++", "-nostdlibinc"];
+        parser.parse(&args);
+        assert_eq!(parser.args.compiler_args, args);
+        assert!(parser.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn h_parsing() {
+        let mut parser = setup_parser().unwrap();
+        let args = ["-H"];
         parser.parse(&args);
         assert_eq!(parser.args.compiler_args, args);
         assert!(parser.unknown_args.is_empty());
