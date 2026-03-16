@@ -586,6 +586,7 @@ pub(crate) struct Args {
     print_multi_lib: bool,
     print_sysroot: bool,
     print_sysroot_headers_suffix: bool,
+    pub(crate) stdio_input: bool,
 }
 
 impl Default for Args {
@@ -640,6 +641,7 @@ impl Default for Args {
             print_multi_lib: false,
             print_sysroot: false,
             print_sysroot_headers_suffix: false,
+            stdio_input: false,
         }
     }
 }
@@ -688,7 +690,7 @@ impl Args {
                 || (args.hash_hash_hash || args.verbose) && args.raw_linker_args.is_empty()
             {
                 args.mode = Mode::CompileOnly;
-            } else if !args.sources.is_empty() {
+            } else if !args.sources.is_empty() || args.stdio_input {
                 args.mode = Mode::CompileAndLink
             } else if args.input_objects_found || !args.raw_linker_args.is_empty() {
                 args.mode = Mode::LinkOnly
@@ -898,8 +900,7 @@ fn setup_parser() -> Result<ArgParser> {
     parser
         .declare_flag()
         .short("")
-        .bind(|args| FlagValue::Multi(&mut args.compiler_args))
-        .raw()
+        .bind(|args| FlagValue::Single(&mut args.stdio_input))
         .build()?;
 
     parser
@@ -1793,7 +1794,7 @@ mod tests {
     fn dash_parsing() {
         let mut parser = setup_parser().unwrap();
         parser.parse(&["foo", "-", "bar"]);
-        assert_eq!(parser.args.compiler_args, ["-"]);
+        assert!(parser.args.stdio_input);
         assert!(parser.unknown_args.is_empty());
     }
 
