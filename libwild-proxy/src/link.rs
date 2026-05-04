@@ -1,5 +1,5 @@
 use crate::args::{Args, OutputKind};
-use anyhow::{Result, bail};
+use anyhow::{Result, anyhow, bail};
 use std::{
     collections::BTreeMap,
     fs::read_dir,
@@ -160,13 +160,16 @@ pub(crate) fn link(args: &Args) -> Result<()> {
         eprintln!(" wild {}", linker_args.join(" "));
     }
     if !args.hash_hash_hash {
-        let wild_args = match libwild::Args::parse(|| linker_args.iter()) {
-            Ok(args) => args,
-            Err(e) => {
-                bail!("Wild args parse error: {}", e.to_string());
-            }
+        let mut wild_args = libwild::Args::new(|| linker_args.iter())
+            .map_err(|e| anyhow!("Wild args parse error: {}", e.to_string()))?;
+        wild_args
+            .parse(|| linker_args.iter())
+            .map_err(|e| anyhow::anyhow!("Wild args parse error: {}", e.to_string()))?;
+        // TODO: Do forking
+        // unsafe { libwild::run_in_subprocess(wild_args) }
+        if let Err(e) = libwild::run(wild_args) {
+            bail!("Wild run error: {}", e.to_string());
         };
-        unsafe { libwild::run_in_subprocess(wild_args) }
     }
 
     Ok(())
@@ -191,10 +194,9 @@ pub(crate) fn build_link_args(args: &Args) -> Result<Vec<String>> {
         OutputKind::SharedObject => &["-shared"],
     };
 
-    let mut final_linker_args = if let Some(sysroot) = &args.sysroot {
-        vec![format!("--sysroot={sysroot}")]
-    } else {
-        vec![]
+    let mut final_linker_args = vec!["wild".to_string()];
+    if let Some(sysroot) = &args.sysroot {
+        final_linker_args.push(format!("--sysroot={sysroot}"));
     };
     final_linker_args.extend(builtin_args1.iter().map(ToString::to_string));
     if args.rdynamic {

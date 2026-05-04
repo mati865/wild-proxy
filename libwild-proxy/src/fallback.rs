@@ -118,6 +118,8 @@ pub fn fallback() -> Result<()> {
 
     if let Some(command) = commands.link {
         let mut args = shell_words::split(command)?;
+        // Wild tries to guess the flavour from argv[0].
+        args[0] = "wild".to_string();
         // When GCC is invoked with a response file and supposed to do linking, it'll prepare
         // a response file that contains the objects for the linker. Or rather would do that, but
         // we called it with `-###`.
@@ -130,10 +132,20 @@ pub fn fallback() -> Result<()> {
                     .then(|| path.to_string_lossy().to_string())
             }));
         }
-        let wild_args =
-            libwild::Args::parse(|| args.iter().skip(1).filter(|arg| !arg.starts_with('@')));
 
-        match wild_args {
+        let args_iter = || args.iter().filter(|arg| !arg.starts_with('@'));
+        let mut wild_args_result = libwild::Args::new(|| args_iter());
+
+        match &mut wild_args_result {
+            Ok(wild_args) => {
+                if let Err(e) = wild_args.parse(|| args_iter()) {
+                    wild_args_result = Err(e);
+                }
+            }
+            _ => {}
+        }
+
+        match wild_args_result {
             Ok(wild_args) => {
                 // Need to clean up temp files
                 // unsafe { libwild::run_in_subprocess(&wild_args) }

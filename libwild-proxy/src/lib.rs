@@ -1,5 +1,5 @@
 use crate::{arch::target_arch, args::Mode};
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use std::{
     io::Read,
     os::unix::{fs::PermissionsExt, process::CommandExt},
@@ -32,13 +32,16 @@ pub fn process(original_args: &[&str], zero_position_arg: &str, binary_name: &st
     if executable_name != binary_name {
         // TODO: This is out of place and I should think how to do it nicely.
         if executable_name == "wild" || executable_name == "ld.wild" {
-            let wild_args = match libwild::Args::parse(|| original_args.iter()) {
-                Ok(args) => args,
-                Err(e) => {
-                    bail!("Wild args parse error: {}", e.to_string());
-                }
+            let mut wild_args = libwild::Args::new(|| original_args.iter())
+                .map_err(|e| anyhow!("Wild args parse error: {}", e.to_string()))?;
+            wild_args
+                .parse(|| original_args.iter())
+                .map_err(|e| anyhow::anyhow!("Wild args parse error: {}", e.to_string()))?;
+            // TODO: Do forking
+            // unsafe { libwild::run_in_subprocess(wild_args) }
+            if let Err(e) = libwild::run(wild_args) {
+                bail!("Wild run error: {}", e.to_string());
             };
-            unsafe { libwild::run_in_subprocess(wild_args) }
         }
         cpp_mode = executable_name.ends_with("++");
         let target_str = executable_name.rsplit_once("-");
