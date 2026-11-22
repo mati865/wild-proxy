@@ -192,10 +192,12 @@ pub(crate) fn find_next_executable(zero_position_arg: &Path) -> Result<PathBuf> 
 
 #[cfg(test)]
 mod tests {
-    use crate::{args::Args, link::build_link_args};
+    use crate::{
+        args::Args,
+        link::{HostPaths, build_link_args},
+    };
     use pretty_assertions::assert_eq;
 
-    // TODO: Mock GCC dir
     #[test]
     fn rustc_link() {
         let args = vec![
@@ -247,10 +249,11 @@ mod tests {
             "-Wl,-rpath,/../lib",
         ];
         let parsed = Args::parse_args(&args, None, false).unwrap();
-        let link_args = build_link_args(&parsed).unwrap();
+        let link_args = build_link_args(&parsed, &HostPaths::mock(&parsed));
         assert_eq!(
             link_args,
             vec![
+                "wild",
                 "--hash-style=gnu",
                 "--build-id",
                 "--eh-frame-hdr",
@@ -309,9 +312,9 @@ mod tests {
                 "-rpath",
                 "/../lib",
                 "/usr/lib64/gcc/x86_64-pc-linux-gnu/16.1.1/crtendS.o",
-                "/usr/lib64/gcc/x86_64-pc-linux-gnu/16.1.1/../../../../lib64/crtn.o"
+                "/usr/lib64/gcc/x86_64-pc-linux-gnu/16.1.1/../../../../lib64/crtn.o",
             ]
-        )
+        );
     }
 
     #[test]
@@ -619,10 +622,11 @@ mod tests {
             "-Wl,-rpath,/../lib",
         ];
         let parsed = Args::parse_args(&args, None, false).unwrap();
-        let link_args = build_link_args(&parsed).unwrap();
+        let link_args = build_link_args(&parsed, &HostPaths::mock(&parsed));
         assert_eq!(
             link_args,
             vec![
+                "wild",
                 "--hash-style=gnu",
                 "--build-id",
                 "--eh-frame-hdr",
@@ -932,8 +936,8 @@ mod tests {
                 "-rpath",
                 "/../lib",
                 "/usr/lib64/gcc/x86_64-pc-linux-gnu/16.1.1/crtendS.o",
-                "/usr/lib64/gcc/x86_64-pc-linux-gnu/16.1.1/../../../../lib64/crtn.o"
+                "/usr/lib64/gcc/x86_64-pc-linux-gnu/16.1.1/../../../../lib64/crtn.o",
             ]
-        )
+        );
     }
 }

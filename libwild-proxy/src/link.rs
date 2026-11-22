@@ -6,14 +6,52 @@ use std::{
     path::{Path, PathBuf},
 };
 
-struct SystemLibraryPaths {
-    crt1: Option<PathBuf>,
-    crti: PathBuf,
-    crtn: PathBuf,
-    library_paths: Vec<String>,
+pub(crate) struct SystemLibraryPaths {
+    pub(crate) crt1: Option<PathBuf>,
+    pub(crate) crti: PathBuf,
+    pub(crate) crtn: PathBuf,
+    pub(crate) library_paths: Vec<String>,
 }
 
-fn system_library_paths(args: &Args, gcc_libs_path: &PathBuf) -> Result<SystemLibraryPaths> {
+fn potential_library_paths(args: &Args, gcc_libs_path: &Path) -> Vec<String> {
+    if let Some(path) = &args.sysroot
+        && path != "/"
+    {
+        let trimmed = path.trim_end_matches("/");
+        vec![
+            format!("{}/../../../../lib64", gcc_libs_path.display()),
+            format!("{trimmed}/../lib64"),
+            format!("{trimmed}/lib"),
+        ]
+    } else {
+        vec![
+            format!("{}/../../../../lib64", gcc_libs_path.display()),
+            // This needs to be relative not to break Wild's WILD_SAVE_DIR
+            "/lib/../lib64".to_string(),
+            "/usr/lib64".to_string(),
+            "/lib".to_string(),
+            "/usr/lib".to_string(),
+        ]
+    }
+}
+
+fn system_library_paths(args: &Args, gcc_libs_path: &Path) -> Result<SystemLibraryPaths> {
+    let potential_paths = potential_library_paths(args, gcc_libs_path);
+    let Some(found_path) = potential_paths
+        .iter()
+        .map(Path::new)
+        .find(|p| p.join("crti.o").exists())
+    else {
+        bail!("todo");
+    };
+    Ok(system_library_paths_at(args, gcc_libs_path, found_path))
+}
+
+fn system_library_paths_at(
+    args: &Args,
+    gcc_libs_path: &Path,
+    found_path: &Path,
+) -> SystemLibraryPaths {
     // 535 │ glibc /usr/lib/Mcrt1.o
     // 536 │ glibc /usr/lib/Scrt1.o
     // 539 │ glibc /usr/lib/crt1.o
@@ -40,73 +78,26 @@ fn system_library_paths(args: &Args, gcc_libs_path: &PathBuf) -> Result<SystemLi
     let crti_name = "crti.o";
     let crtn_name = "crtn.o";
 
-    let potential_paths = if let Some(path) = &args.sysroot
-        && path != "/"
-    {
-        let trimmed = path.trim_end_matches("/");
-        vec![
-            format!("{}/../../../../lib64", gcc_libs_path.display()),
-            format!("{trimmed}/../lib64"),
-            format!("{trimmed}/lib"),
-        ]
-    } else {
-        vec![
-            format!("{}/../../../../lib64", gcc_libs_path.display()),
-            // This needs to be relative not to break Wild's WILD_SAVE_DIR
-            "/lib/../lib64".to_string(),
-            "/usr/lib64".to_string(),
-            "/lib".to_string(),
-            "/usr/lib".to_string(),
-        ]
-    };
-    let Some(found_path) = potential_paths
-        .iter()
-        .map(Path::new)
-        .find(|p| p.join(crti_name).exists())
-    else {
-        bail!("todo");
-    };
-
     // TODO: avoid duplication?
     let crt1 = crt1_name.map(|name| found_path.join(name));
     let crti = found_path.join(crti_name);
     let crtn = found_path.join(crtn_name);
 
-    Ok(SystemLibraryPaths {
+    SystemLibraryPaths {
         crt1,
         crti,
         crtn,
-        library_paths: potential_paths,
-    })
+        library_paths: potential_library_paths(args, gcc_libs_path),
+    }
 }
 
-struct GccObjects {
-    begin_object: PathBuf,
-    end_object: PathBuf,
-    lib_dir: PathBuf,
+pub(crate) struct GccObjects {
+    pub(crate) begin_object: PathBuf,
+    pub(crate) end_object: PathBuf,
+    pub(crate) lib_dir: PathBuf,
 }
 
 fn gcc_objects(args: &Args) -> Result<GccObjects> {
-    // 952 │ gcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtbegin.o
-    // 953 │ gcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtbeginS.o
-    // 954 │ gcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtbeginT.o
-    // 955 │ gcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtend.o
-    // 956 │ gcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtendS.o
-    // 957 │ gcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtfastmath.o
-    // 958 │ gcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtprec32.o
-    // 959 │ gcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtprec64.o
-    // 960 │ gcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtprec80.o
-    // TODO: Handle others
-    let begin_object_name = match args.output_kind {
-        OutputKind::DynamicPie | OutputKind::StaticPie | OutputKind::SharedObject => "crtbeginS.o",
-        OutputKind::Dynamic => "crtbegin.o",
-        OutputKind::Static => "crtbeginT.o",
-    };
-    let end_object_name = match args.output_kind {
-        OutputKind::DynamicPie | OutputKind::StaticPie | OutputKind::SharedObject => "crtendS.o",
-        _ => "crtend.o",
-    };
-
     // TODO: Figure out the logic
     // TODO: handle other distros like RHEL and *SUSE
     let potential_paths = ["/usr/lib64", "/usr/lib"];
@@ -143,18 +134,66 @@ fn gcc_objects(args: &Args) -> Result<GccObjects> {
         .collect::<BTreeMap<_, _>>();
     assert!(!gcc_versions.is_empty(), "Could not find GCC directory");
     let lib_dir = gcc_versions.pop_last().unwrap().1;
-    let begin_object = lib_dir.join(begin_object_name);
-    let end_object = lib_dir.join(end_object_name);
 
-    Ok(GccObjects {
-        begin_object,
-        end_object,
+    Ok(gcc_objects_at(args, lib_dir))
+}
+
+fn gcc_objects_at(args: &Args, lib_dir: PathBuf) -> GccObjects {
+    // 952 │ gcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtbegin.o
+    // 953 │ gcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtbeginS.o
+    // 954 │ gcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtbeginT.o
+    // 955 │ gcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtend.o
+    // 956 │ gcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtendS.o
+    // 957 │ gcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtfastmath.o
+    // 958 │ gcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtprec32.o
+    // 959 │ gcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtprec64.o
+    // 960 │ gcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtprec80.o
+    // TODO: Handle others
+    let begin_object_name = match args.output_kind {
+        OutputKind::DynamicPie | OutputKind::StaticPie | OutputKind::SharedObject => "crtbeginS.o",
+        OutputKind::Dynamic => "crtbegin.o",
+        OutputKind::Static => "crtbeginT.o",
+    };
+    let end_object_name = match args.output_kind {
+        OutputKind::DynamicPie | OutputKind::StaticPie | OutputKind::SharedObject => "crtendS.o",
+        _ => "crtend.o",
+    };
+
+    GccObjects {
+        begin_object: lib_dir.join(begin_object_name),
+        end_object: lib_dir.join(end_object_name),
         lib_dir,
-    })
+    }
+}
+
+pub(crate) struct HostPaths {
+    pub(crate) gcc_objects: GccObjects,
+    pub(crate) system_library_paths: SystemLibraryPaths,
+}
+
+impl HostPaths {
+    fn discover(args: &Args) -> Result<HostPaths> {
+        let gcc_objects = gcc_objects(args)?;
+        let system_library_paths = system_library_paths(args, &gcc_objects.lib_dir)?;
+        Ok(HostPaths {
+            gcc_objects,
+            system_library_paths,
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn mock(args: &Args) -> HostPaths {
+        let lib_dir = PathBuf::from("/usr/lib64/gcc/x86_64-pc-linux-gnu/16.1.1");
+        let crt_dir = lib_dir.join("../../../../lib64");
+        HostPaths {
+            gcc_objects: gcc_objects_at(args, lib_dir.clone()),
+            system_library_paths: system_library_paths_at(args, &lib_dir, &crt_dir),
+        }
+    }
 }
 
 pub(crate) fn link(args: &Args) -> Result<()> {
-    let linker_args = build_link_args(&args)?;
+    let linker_args = build_link_args(args, &HostPaths::discover(args)?);
 
     if args.hash_hash_hash || args.verbose {
         eprintln!(" wild {}", linker_args.join(" "));
@@ -175,9 +214,9 @@ pub(crate) fn link(args: &Args) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn build_link_args(args: &Args) -> Result<Vec<String>> {
-    let gcc_objects = gcc_objects(&args)?;
-    let system_library_paths = system_library_paths(&args, &gcc_objects.lib_dir)?;
+pub(crate) fn build_link_args(args: &Args, host_paths: &HostPaths) -> Vec<String> {
+    let gcc_objects = &host_paths.gcc_objects;
+    let system_library_paths = &host_paths.system_library_paths;
     // Based on Clang
     let builtin_args1 = [
         "--hash-style=gnu",
@@ -208,7 +247,7 @@ pub(crate) fn build_link_args(args: &Args) -> Result<Vec<String>> {
 
     // TODO: Add `--sysroot` when not running natively, Clang doesn't do it.
 
-    if let Some(crt1) = system_library_paths.crt1 {
+    if let Some(crt1) = &system_library_paths.crt1 {
         final_linker_args.push(crt1.display().to_string());
     }
     if !args.nostdlib {
@@ -266,7 +305,7 @@ pub(crate) fn build_link_args(args: &Args) -> Result<Vec<String>> {
             .iter()
             .flat_map(|script| ["-T".to_string(), script.to_string()]),
     );
-    Ok(final_linker_args)
+    final_linker_args
 }
 
 // World:
